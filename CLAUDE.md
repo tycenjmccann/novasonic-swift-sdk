@@ -100,6 +100,6 @@ The host app must include `hello.wav` in its bundle for the audio fallback path.
 - **AWS region**: Nova Sonic only supports `us-east-1`, `us-west-2`, `ap-northeast-1`. Validated in `NovaSonicConfiguration.validate()`.
 - **`@MainActor` threading**: `NovaSonicStreamManager` is `@MainActor`. The private `updateIsStreaming`, `updateConnectionStatus`, `addMessage`, `updateError` helpers handle off-main-thread dispatching safely.
 - **No umbrella imports**: `Package.swift` imports only specific AWS products (`AWSBedrockRuntime`, `AWSSDKIdentity`, `AWSBedrockAgentRuntime`, `AWSDynamoDB`), not the full `AWSSDK` umbrella.
-- **AWS SDK version is pinned exactly**: `exact: "1.2.59"` — do not change to a range without verifying streaming API compatibility.
+- **AWS SDK minimum version**: `from: "1.2.59"` — using a range is required for a distributed library (an `exact:` pin causes SPM resolution failures for any consumer that uses the AWS SDK elsewhere). If the bidirectional streaming API breaks in a newer SDK release, bump the lower bound after verifying compatibility.
 - **Conversation IDs**: If no `currentConversationId` is set, `promptName` (a UUID generated at init) is used as the conversation ID for persistence.
 - **Log levels**: `NovaSonicLogLevel` has `.off`, `.minimal`, `.standard` (default), `.verbose`. Set in `NovaSonicConfiguration(logLevel:)`. Use `NovaSonicLogger.verbose()` for debug-only output.
