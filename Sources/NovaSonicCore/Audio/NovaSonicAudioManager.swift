@@ -69,10 +69,10 @@ public class NovaSonicAudioManager: ObservableObject {
         // Get sample rates from configuration
         let inputSampleRate = Double(configuration?.inputSampleRate.hertz ?? 16000)
         let outputSampleRate = Double(configuration?.outputSampleRate.hertz ?? 24000)
-        
-        // Configure the shared audio engine with the sample rates
-        SharedAudioEngine.shared.configure(inputSampleRate: inputSampleRate, outputSampleRate: outputSampleRate)
-        
+
+        // SharedAudioEngine is already fully configured (including sessionCategory/Options)
+        // by configure(with:) — do not call configure() again here or it resets session params.
+
         // CRITICAL: Activate audio session before creating streams
         try SharedAudioEngine.shared.activateSession()
         

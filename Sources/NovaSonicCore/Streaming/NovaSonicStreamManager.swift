@@ -735,10 +735,9 @@ public class NovaSonicStreamManager: ObservableObject {
             messageType: messageType
         )
         
-        // If this is a speculative assistant message, track it in our array
-        if isSpeculative && !isUser && messageType == .assistant {
+        // If this is a speculative assistant message, track it in order for later replacement
+        if isSpeculative && !isUser && messageType == .speculative {
             speculativeMessageIds.append(msg.id)
-            // Add speculative message silently
         }
         
         // Target binding used to display Resuming Chats in Chat History
