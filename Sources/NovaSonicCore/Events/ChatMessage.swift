@@ -5,7 +5,7 @@ public struct ChatMessage: Identifiable, Codable {
     public let id: String
     public var text: String  // Changed from 'let' to 'var' to allow updates
     public let isUser: Bool
-    public let messageType: MessageType
+    public var messageType: MessageType
     public let timestamp: Date
     
     public enum MessageType: String, Codable, CaseIterable {

@@ -28,6 +28,12 @@ public class NovaSonicAudioManager: ObservableObject {
     /// Configure the audio manager with Nova Sonic settings
     public func configure(with configuration: NovaSonicConfiguration) {
         self.configuration = configuration
+        SharedAudioEngine.shared.configure(
+            inputSampleRate: Double(configuration.inputSampleRate.hertz),
+            outputSampleRate: Double(configuration.outputSampleRate.hertz),
+            sessionCategory: configuration.audioSessionCategory,
+            sessionOptions: configuration.audioSessionOptions
+        )
     }
     
     /// Request microphone permission from the user

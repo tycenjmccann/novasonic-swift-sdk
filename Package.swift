@@ -15,7 +15,7 @@ let package = Package(
     ],
     dependencies: [
         // AWS SDK for Swift - compatible with applications using version 1.2.59 and above
-        .package(url: "https://github.com/awslabs/aws-sdk-swift.git", exact: "1.2.59")
+        .package(url: "https://github.com/awslabs/aws-sdk-swift.git", from: "1.2.59")
     ],
     targets: [
         .target(

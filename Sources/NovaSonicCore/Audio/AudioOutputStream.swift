@@ -43,7 +43,7 @@ public class AudioOutputStream {
             channels: 1,
             interleaved: true
         ) else {
-            fatalError("Failed to create input format for sample rate: \(sourceSampleRate)")
+            throw NovaSonicError.invalidAudioFormat
         }
         
         self.inputFormat = format

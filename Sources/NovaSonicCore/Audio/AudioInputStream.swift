@@ -8,7 +8,6 @@ public class AudioInputStream {
     private let bufferSize: AVAudioFrameCount = 256
     private var isRecording = false
 
-    private var cachedConverter: AVAudioConverter?
     private let desiredFormat: AVAudioFormat
 
     public init(targetSampleRate: Double = 16000) throws {
@@ -19,40 +18,34 @@ public class AudioInputStream {
                                       sampleRate: targetSampleRate,
                                       channels: 1,
                                       interleaved: true) else {
-            fatalError("Failed to build desiredFormat for sample rate: \(targetSampleRate)")
+            throw NovaSonicError.invalidAudioFormat
         }
         self.desiredFormat = fmt
-        // Remove verbose config log - not needed
-        // NovaSonicLogger.verbose("🎤 AudioInputStream configured for \(targetSampleRate) Hz")
     }
 
     /// Starts recording. Calls back onAudioChunk on a background queue.
     public func startRecording(onAudioChunk: @escaping (Data) -> Void) throws {
         NovaSonicLogger.standard("🎙️ Starting audio recording…")
 
-        // 1) Ensure session + engine are configured & running
         try engine.inputNode.setVoiceProcessingEnabled(true)
         try SharedAudioEngine.shared.activateSession()
         try SharedAudioEngine.shared.startEngine()
 
-        // 2) Prepare converter if needed
         let inputFormat = inputNode.outputFormat(forBus: 0)
-        if cachedConverter == nil {
-            guard let conv = AVAudioConverter(from: inputFormat, to: desiredFormat) else {
-                throw NovaSonicError.converterCreationFailed
-            }
-            cachedConverter = conv
+
+        // Build and validate the converter before installing the tap so the
+        // tap closure captures an immutable local — no shared-state data race.
+        guard let converter = AVAudioConverter(from: inputFormat, to: desiredFormat) else {
+            throw NovaSonicError.converterCreationFailed
         }
 
-        // 3) Install the tap
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0,
                              bufferSize: bufferSize,
-                             format: inputFormat) { [weak self] buffer, _ in
-            guard let self = self,
-                  let srcChannels = buffer.floatChannelData else { return }
+                             format: inputFormat) { [desiredFormat] buffer, _ in
+            guard let srcChannels = buffer.floatChannelData else { return }
 
-            // Quickly copy into a new buffer on RT thread
+            // Copy on the real-time thread; convert on a worker thread.
             let frameLen = buffer.frameLength
             let fmt      = buffer.format
             guard let copyBuf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frameLen) else { return }
@@ -66,16 +59,12 @@ public class AudioInputStream {
                        Int(frameLen) * bytesPerFrame)
             }
 
-            // Dispatch heavy conversion & Data work off the real-time thread
             DispatchQueue.global(qos: .userInitiated).async {
-                guard let converter = self.cachedConverter else { return }
-
-                // Estimate output capacity
-                let ratio = self.desiredFormat.sampleRate / inputFormat.sampleRate
+                let ratio = desiredFormat.sampleRate / inputFormat.sampleRate
                 let expCap = AVAudioFrameCount(Double(frameLen) * ratio)
-                guard let outBuf = AVAudioPCMBuffer(pcmFormat: self.desiredFormat,
+                guard let outBuf = AVAudioPCMBuffer(pcmFormat: desiredFormat,
                                                     frameCapacity: expCap) else {
-                    NovaSonicLogger.error("❌ Failed to allocate outBuf")
+                    NovaSonicLogger.error("❌ Failed to allocate output buffer")
                     return
                 }
 
@@ -99,23 +88,14 @@ public class AudioInputStream {
     }
 
     public func stopRecording() {
-        // Remove stopping log - not needed, developers can infer this
         inputNode.removeTap(onBus: 0)
         isRecording = false
     }
-    
-    // MARK: - Cleanup
-    
+
     deinit {
-        NovaSonicLogger.verbose("🧹 AudioInputStream: deinit - cleaning up resources")
-        
-        // Stop recording if still active
         if isRecording {
             inputNode.removeTap(onBus: 0)
-            isRecording = false
         }
-        
-        NovaSonicLogger.verbose("🧹 AudioInputStream: deinit complete")
     }
 }
 

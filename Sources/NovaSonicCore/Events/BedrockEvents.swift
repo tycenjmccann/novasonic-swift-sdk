@@ -7,19 +7,30 @@
 import Foundation
 
 public struct BedrockEvents {
-    //MARK: - Initialization Events
-    // SessionStart
-        public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil) -> String {
+
+    // MARK: - Private JSON Helper
+
+    /// Safely serializes a Foundation object to a JSON string.
+    /// Uses assertionFailure in debug builds to surface programming errors early,
+    /// and returns a no-op empty object in production rather than crashing.
+    private static func encodeJSON(_ object: Any) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: object),
+              let string = String(data: data, encoding: .utf8) else {
+            assertionFailure("NovaSonic: Failed to serialize JSON event — this is a programming error")
+            return "{}"
+        }
+        return string
+    }
+
+    // MARK: - Initialization Events
+
+    public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil) -> String {
         return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
     }
-    
-    // PromptStart -- With Tools
+
     public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {
-        
-        // Get tool specifications from the registry
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
-        
-        // Convert tool specs to the format expected by Nova Sonic
+
         let toolsArray = toolSpecs.map { spec in
             [
                 "toolSpec": [
@@ -61,12 +72,9 @@ public struct BedrockEvents {
             ]
         ]
 
-        // Convert final event to JSON string
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
 
-    // For conversation history text input
     public static func historyTextInputEvent(promptName: String, contentName: String, content: String, role: String) -> String {
         let event: [String: Any] = [
             "event": [
@@ -74,17 +82,13 @@ public struct BedrockEvents {
                     "promptName": promptName,
                     "contentName": contentName,
                     "content": content,
-                    "role": role  // Include role here
+                    "role": role
                 ]
             ]
         ]
-        
-        // Convert final event to JSON string
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
-    
-    // For conversation history
+
     public static func textContentStartEvent(promptName: String, contentName: String, role: String = "USER") -> String {
         let event: [String: Any] = [
             "event": [
@@ -100,13 +104,9 @@ public struct BedrockEvents {
                 ]
             ]
         ]
-        
-        // Convert final event to JSON string
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
-    
-    // For system prompt
+
     public static func systemTextContentStartEvent(promptName: String, contentName: String) -> String {
         let event: [String: Any] = [
             "event": [
@@ -122,30 +122,25 @@ public struct BedrockEvents {
                 ]
             ]
         ]
-        
-        // Convert final event to JSON string
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
-    
-    //TextInput - prompt for the model behavior
+
     public static func textInputEvent(promptName: String, contentName: String) -> String {
-        """
-        {
-            "event": {
-                "textInput": {
-                    "promptName": "\(promptName)",
-                    "contentName": "\(contentName)",
+        let event: [String: Any] = [
+            "event": [
+                "textInput": [
+                    "promptName": promptName,
+                    "contentName": contentName,
                     "content": "You are Nova Sonic, a helpful voice assistant. You can answer questions, provide information, and have natural conversations. Keep your responses concise and conversational. You have access to tools that you can use when appropriate. When a user asks for information that might benefit from using a tool, consider using the available tools to provide more accurate and helpful responses.",
-                    "role":"SYSTEM"
-                }
-            }
-        }
-        """
+                    "role": "SYSTEM"
+                ]
+            ]
+        ]
+        return encodeJSON(event)
     }
-    
+
     // MARK: - Paralinguistic Detection (Nova 2.0)
-    
+
     public static func paralinguisticContentStartEvent(promptName: String, contentName: String) -> String {
         let event: [String: Any] = [
             "event": [
@@ -161,15 +156,13 @@ public struct BedrockEvents {
                 ]
             ]
         ]
-        
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
-    
+
     public static func paralinguisticTextInputEvent(promptName: String, contentName: String) -> String {
-        // IMPORTANT: Do not modify this content - it must be exactly as specified by Nova 2.0
+        // IMPORTANT: Do not modify this content — exact Nova 2.0 spec requirement.
         let content = "Convert streaming speech to text, call an external model for text responses, emit turn taking events, and convert the text to speech. The transcription and response should be in spoken form with no capitalization and punctuations. Add per turn user emotion to the output."
-        
+
         let event: [String: Any] = [
             "event": [
                 "textInput": [
@@ -179,12 +172,9 @@ public struct BedrockEvents {
                 ]
             ]
         ]
-        
-        let eventData = try! JSONSerialization.data(withJSONObject: event, options: [])
-        return String(data: eventData, encoding: .utf8)!
+        return encodeJSON(event)
     }
 
-    //ContentEnd
     public static func contentEndEvent(promptName: String, contentName: String) -> String {
         """
         {
@@ -197,9 +187,9 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //MARK: - Audio Streaming Events
-    //AudioContentStart
+
+    // MARK: - Audio Streaming Events
+
     public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000) -> String {
         """
         {
@@ -223,8 +213,7 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //AudioInput Chunks
+
     public static func audioInputEvent(audioData: Data, promptName: String, audioContentName: String) -> String {
         let base64Audio = audioData.base64EncodedString()
         return """
@@ -239,8 +228,7 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //Audio End Event
+
     public static func audioContentEndEvent(promptName: String, audioContentName: String) -> String {
         """
         {
@@ -253,10 +241,9 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //MARK: - Tool Events
-    
-    //Tool Content Start
+
+    // MARK: - Tool Events
+
     public static func makeContentStart(_ promptName: String, _ contentName: String, _ toolUseId: String) -> String {
         return """
         {
@@ -278,32 +265,20 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //Tool Result
+
     public static func makeToolResult(_ promptName: String, _ contentName: String, _ jsonString: String) -> String {
-        // Properly escape the JSON string to avoid parsing issues
-        let escapedJson = jsonString
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        
-        NovaSonicLogger.verbose("Original JSON string: \(jsonString)")
-        NovaSonicLogger.verbose("Escaped JSON string: \(escapedJson)")
-        
-        return """
-        {
-            "event": {
-                "textInput": {
-                    "promptName": "\(promptName)",
-                    "contentName": "\(contentName)",
-                    "content": "\(escapedJson)"
-                }
-            }
-        }
-        """
+        let event: [String: Any] = [
+            "event": [
+                "textInput": [
+                    "promptName": promptName,
+                    "contentName": contentName,
+                    "content": jsonString
+                ]
+            ]
+        ]
+        return encodeJSON(event)
     }
-    
-    //Tool End
+
     public static func makeContentEnd(_ promptName: String, _ contentName: String) -> String {
         return """
         {
@@ -317,9 +292,8 @@ public struct BedrockEvents {
         """
     }
 
-    //MARK: - Session Closing Events
-    
-    //Close Out Prompt
+    // MARK: - Session Closing Events
+
     public static func promptEndEvent(promptName: String) -> String {
         """
         {
@@ -331,8 +305,7 @@ public struct BedrockEvents {
         }
         """
     }
-    
-    //Close Out Session
+
     public static func sessionEndEvent() -> String {
         """
         {
