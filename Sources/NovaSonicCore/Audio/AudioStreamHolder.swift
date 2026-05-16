@@ -1,4 +1,4 @@
-#if os(iOS)
+#if IOS_AUDIO
 //
 //  AudioStreamHolder.swift
 //  NovaSonic Package

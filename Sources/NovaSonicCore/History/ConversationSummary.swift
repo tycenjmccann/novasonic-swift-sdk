@@ -42,77 +42,88 @@ extension ConversationSummary: Hashable {
 
 // MARK: - Date Formatting Extensions
 extension ConversationSummary {
+
+    // DateFormatter is expensive to initialise; share one instance per format.
+    private static let longDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMMM d"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
+    private static let dayNameFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
+    private static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
+    private static let fullDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
     /// Formatted date for display (e.g., "Tuesday, July 1st")
     public var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        formatter.timeZone = TimeZone.current
-        
         let day = Calendar.current.component(.day, from: timestamp)
         let suffix = daySuffix(for: day)
-        let baseString = formatter.string(from: timestamp)
-        
-        // Replace the day number with day + suffix
+        let baseString = Self.longDateFormatter.string(from: timestamp)
         return baseString.replacingOccurrences(of: " \(day)", with: " \(day)\(suffix)")
     }
-    
+
     /// Formatted time for display (e.g., "4:37 PM")
     public var formattedTime: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        formatter.timeZone = TimeZone.current  // User's timezone
-        return formatter.string(from: timestamp)
+        Self.timeFormatter.string(from: timestamp)
     }
-    
+
     /// Relative date for recent conversations (e.g., "Today", "Yesterday")
     public var relativeDate: String {
         let calendar = Calendar.current
         let now = Date()
-        
+
         if calendar.isDateInToday(timestamp) {
             return "Today"
         } else if calendar.isDateInYesterday(timestamp) {
             return "Yesterday"
         } else if calendar.dateInterval(of: .weekOfYear, for: now)?.contains(timestamp) == true {
-            // This week - show day name only (e.g., "Monday")
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE"
-            formatter.timeZone = TimeZone.current
-            return formatter.string(from: timestamp)
+            return Self.dayNameFormatter.string(from: timestamp)
         } else if let weekAgo = calendar.date(byAdding: .weekOfYear, value: -1, to: now),
                   calendar.dateInterval(of: .weekOfYear, for: weekAgo)?.contains(timestamp) == true {
-            // Last week - show "Last [Day]" (e.g., "Last Monday")
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE"
-            formatter.timeZone = TimeZone.current
-            return "Last " + formatter.string(from: timestamp)
+            return "Last " + Self.dayNameFormatter.string(from: timestamp)
         } else {
-            // Older - show full formatted date
             return formattedDate
         }
     }
-    
+
     /// Compact date for space-constrained UI (e.g., "Jul 1" or "Today")
     public var compactDate: String {
         let calendar = Calendar.current
         let now = Date()
-        
+
         if calendar.isDateInToday(timestamp) {
             return "Today"
         } else if calendar.isDateInYesterday(timestamp) {
             return "Yesterday"
         } else if calendar.isDate(timestamp, equalTo: now, toGranularity: .year) {
-            // Same year - show month and day
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
-            formatter.timeZone = TimeZone.current
-            return formatter.string(from: timestamp)
+            return Self.shortDateFormatter.string(from: timestamp)
         } else {
-            // Different year - show month, day, and year
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d, yyyy"
-            formatter.timeZone = TimeZone.current
-            return formatter.string(from: timestamp)
+            return Self.fullDateFormatter.string(from: timestamp)
         }
     }
     

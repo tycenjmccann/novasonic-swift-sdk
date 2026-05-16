@@ -116,13 +116,18 @@ internal class DynamoDBManager {
         return response.items ?? []
     }
     
-    /// List all conversations for the user
-    /// - Returns: Array of DynamoDB items representing conversation summaries
+    /// List all conversations for the user.
+    ///
+    /// ⚠️ Performance note: this queries the full user partition and de-duplicates in memory.
+    /// For production workloads with large conversation histories, add a GSI on
+    /// (userId, conversationId) and store one summary row per conversation rather than
+    /// scanning all message rows. The Limit below caps reads to the 500 most-recent rows.
     internal func listConversations() async throws -> [[String : DynamoDBClientTypes.AttributeValue]] {
-        // Query every row that belongs to the specified user
         let input = QueryInput(
             expressionAttributeValues: [":userId": .s(userId)],
             keyConditionExpression: "userId = :userId",
+            limit: 500,
+            scanIndexForward: false,
             tableName: tableName
         )
         let items = try await client.query(input: input).items ?? []

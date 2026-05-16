@@ -7,7 +7,7 @@
 import SwiftUI
 import AWSBedrockRuntime
 import ClientRuntime
-#if os(iOS)
+#if IOS_AUDIO
 import AVFoundation
 #endif
 import AWSSDKIdentity
@@ -15,7 +15,7 @@ import SmithyIdentity
 import AwsCommonRuntimeKit
 
 @MainActor
-public class NovaSonicStreamManager: NSObject, ObservableObject {
+public class NovaSonicStreamManager: ObservableObject {
     
     // MARK: - Published Properties
     @Published public var isStreaming = false
@@ -24,55 +24,12 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     @Published public var selectedVoice: NovaSonicVoice = .tiffany
     @Published public var lastError: NovaSonicError?
     
-    // MARK: - Thread-Safe Property Updates
-    
-    /// Thread-safe way to update isStreaming property
-    private func updateIsStreaming(_ value: Bool) {
-        NovaSonicLogger.thread("Updating isStreaming to \(value)")
-        if Thread.isMainThread {
-            self.isStreaming = value
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.isStreaming = value
-            }
-        }
-    }
-    
-    /// Thread-safe way to update connection status
-    private func updateConnectionStatus(_ status: ConnectionStatus) {
-        NovaSonicLogger.thread("Updating connectionStatus to \(status)")
-        if Thread.isMainThread {
-            self.connectionStatus = status
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.connectionStatus = status
-            }
-        }
-    }
-    
-    /// Thread-safe way to add messages
-    private func addMessage(_ message: ChatMessage) {
-        NovaSonicLogger.thread("Adding message: \(message.text.prefix(50))...")
-        if Thread.isMainThread {
-            self.messages.append(message)
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.messages.append(message)
-            }
-        }
-    }
-    
-    /// Thread-safe way to update error
-    private func updateError(_ error: NovaSonicError?) {
-        NovaSonicLogger.thread("Updating error: \(error?.localizedDescription ?? "nil")")
-        if Thread.isMainThread {
-            self.lastError = error
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.lastError = error
-            }
-        }
-    }
+    // MARK: - Private Helpers
+
+    private func updateIsStreaming(_ value: Bool) { isStreaming = value }
+    private func updateConnectionStatus(_ status: ConnectionStatus) { connectionStatus = status }
+    private func addMessage(_ message: ChatMessage) { messages.append(message) }
+    private func updateError(_ error: NovaSonicError?) { lastError = error }
     
     // MARK: - Configuration
     private var configuration: NovaSonicConfiguration?
@@ -116,7 +73,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     private var eventStreamContinuation: AsyncThrowingStream<BedrockRuntimeClientTypes.InvokeModelWithBidirectionalStreamInput, Error>.Continuation?
     
     // Audio management
-    #if os(iOS)
+    #if IOS_AUDIO
     private let audioManager = NovaSonicAudioManager()
     #endif
     
@@ -136,15 +93,19 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     private var didReceiveTextOutput = false
     
     // MARK: - Initialization
-    public override init() {
-        super.init()
-        // Note: configureClient() moved to configure() method to respect log level
-    }
+    public init() {}
     
     // MARK: - Configuration
     public func configure(with config: NovaSonicConfiguration, bedrockClient: BedrockRuntimeClient? = nil) {
+        do {
+            try config.validate()
+        } catch {
+            lastError = NovaSonicError.invalidConfiguration
+            NovaSonicLogger.error("❌ Invalid configuration: \(error.localizedDescription)")
+            return
+        }
         self.configuration = config
-        self.selectedVoice = config.voice  // ← FIX: Update selectedVoice to match configuration
+        self.selectedVoice = config.voice
         
         // Initialize logging with configuration level
         NovaSonicLogger.initialize(level: config.logLevel)
@@ -491,7 +452,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
                 // Setup the audio streams.
                 try? await setupAudioStreams()
                 
-                #if os(iOS)
+                #if IOS_AUDIO
                 do {
                     try await audioManager.startRecording { [weak self] chunkData in
                         // Log audio chunk processing (but not too frequently)
@@ -539,7 +500,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     // MARK: - Audio Management
     private func setupAudioStreams() async throws {
         
-        #if os(iOS)
+        #if IOS_AUDIO
         do {
             // Configure the audio manager with the same configuration
             if let config = configuration {
@@ -574,7 +535,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     
     private func cleanup() async {
         
-        #if os(iOS)
+        #if IOS_AUDIO
         // Use audio manager's cleanup method silently
         await audioManager.cleanup()
         #endif
@@ -686,7 +647,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
                 NovaSonicLogger.verbose("🚨 Original content: \(content)")
                 
                 // Handle interruption by flushing audio queue
-                #if os(iOS)
+                #if IOS_AUDIO
                 Task {
                     await audioManager.flushAudio()
                 }
@@ -755,7 +716,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
                 return
             }
             
-            #if os(iOS)
+            #if IOS_AUDIO
             Task {
                 try await audioManager.playAudio(audioData)
             }
@@ -766,7 +727,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     // MARK: - Message Management
     private func appendMessage(_ text: String, role: String, isSpeculative: Bool) {
         let isUser = role.uppercased() == "USER"
-        let messageType: ChatMessage.MessageType = isUser ? .user : .assistant
+        let messageType: ChatMessage.MessageType = isUser ? .user : (isSpeculative ? .speculative : .assistant)
         
         let msg = ChatMessage(
             text: text,
@@ -774,10 +735,9 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
             messageType: messageType
         )
         
-        // If this is a speculative assistant message, track it in our array
-        if isSpeculative && !isUser && messageType == .assistant {
+        // If this is a speculative assistant message, track it in order for later replacement
+        if isSpeculative && !isUser && messageType == .speculative {
             speculativeMessageIds.append(msg.id)
-            // Add speculative message silently
         }
         
         // Target binding used to display Resuming Chats in Chat History
@@ -805,14 +765,14 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
             // Update in the main messages array
             if let msgIndex = messages.firstIndex(where: { $0.id == messageId }) {
                 messages[msgIndex].text = finalText
-                // Updated message silently
+                messages[msgIndex].messageType = .assistant
             }
             
             // Update in the target binding if available
             if let targetBinding = targetMessagesBinding,
                let msgIndex = targetBinding.wrappedValue.firstIndex(where: { $0.id == messageId }) {
                 targetBinding.wrappedValue[msgIndex].text = finalText
-                // Updated target binding silently
+                targetBinding.wrappedValue[msgIndex].messageType = .assistant
             }
             
             // 🔧 FIX: Save the final assistant message to database
@@ -842,7 +802,7 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
         speculativeMessageIds = []
         finalMessageCount = 0
         
-        #if os(iOS)
+        #if IOS_AUDIO
         // Stop recording and playback with error handling
         do {
             await audioManager.stopRecording()
@@ -1014,74 +974,25 @@ public class NovaSonicStreamManager: NSObject, ObservableObject {
     }
     
     // MARK: - Initial Audio Prompt (Private)
-    
-    /// Load the bundled hello.wav file as Data for initial audio prompt
-    private func loadHelloAudio() -> Data? {
-        NovaSonicLogger.verbose("loadHelloAudio() called")
-        
-        // Try to load from host app's main bundle first
-        if let url = Bundle.main.url(forResource: "hello", withExtension: "wav") {
-            NovaSonicLogger.standard("✅ Found hello.wav in main app bundle at: \(url)")
-            return loadAudioFromURL(url)
-        }
-        
-        // Fallback: try other bundles
-        for bundle in Bundle.allBundles {
-            if let url = bundle.url(forResource: "hello", withExtension: "wav") {
-                NovaSonicLogger.standard("✅ Found hello.wav in bundle: \(bundle.bundlePath)")
-                return loadAudioFromURL(url)
-            }
-        }
-        
-        NovaSonicLogger.error("hello.wav not found - add hello.wav to your app bundle to enable speakFirst")
-        return nil
-    }
-    
-    /// Helper method to load audio from URL
-    private func loadAudioFromURL(_ audioURL: URL) -> Data? {
-        NovaSonicLogger.verbose("loadAudioFromURL called with: \(audioURL)")
-        do {
-            let audioData = try Data(contentsOf: audioURL)
-            NovaSonicLogger.standard("✅ Successfully loaded hello.wav: \(audioData.count) bytes")
-            return audioData
-        } catch {
-            NovaSonicLogger.error("Failed to load hello.wav: \(error)")
-            return nil
-        }
-    }
-    
-    /// Try to find hello.wav in alternative bundle locations
-    private func findHelloWavInAlternativeBundles() -> URL? {
-        // Try main bundle
-        if let url = Bundle.main.url(forResource: "hello", withExtension: "wav") {
-            NovaSonicLogger.standard("✅ Found hello.wav in main bundle")
-            return url
-        }
-        
-        // Try all loaded bundles
-        for bundle in Bundle.allBundles {
-            if let url = bundle.url(forResource: "hello", withExtension: "wav") {
-                NovaSonicLogger.standard("✅ Found hello.wav in bundle: \(bundle.bundleIdentifier ?? "unknown")")
-                return url
-            }
-        }
-        
-        NovaSonicLogger.standard("❌ Could not find hello.wav in any bundle")
-        return nil
-    }
-    
-    
-    /// Get initial audio data - only uses real hello.wav file, no fallback
+
+    /// Returns hello.wav audio data for the speakFirst feature.
+    /// Priority: package bundle (HelloAudio) → host app main bundle → all other bundles.
     private func getInitialAudioData() -> Data? {
-        NovaSonicLogger.verbose("getInitialAudioData() called")
-        
-        if let wavData = loadHelloAudio() {
-            NovaSonicLogger.standard("✅ Using hello.wav file (\(wavData.count) bytes)")
-            return wavData
-        } else {
-            NovaSonicLogger.error("No hello.wav file found - speakFirst will be skipped")
-            return nil
+        // 1. Package-bundled resource (preferred — no host-app setup required)
+        if let data = HelloAudio.data() {
+            NovaSonicLogger.standard("✅ Using package-bundled hello.wav (\(data.count) bytes)")
+            return data
         }
+
+        // 2. Host app bundle override (allows app to supply a custom greeting)
+        if let url = Bundle.main.url(forResource: "hello", withExtension: "wav"),
+           let data = try? Data(contentsOf: url) {
+            NovaSonicLogger.standard("✅ Using host app hello.wav (\(data.count) bytes)")
+            return data
+        }
+
+        NovaSonicLogger.error("hello.wav not found in package or app bundle — speakFirst will be skipped")
+        return nil
     }
 }
 

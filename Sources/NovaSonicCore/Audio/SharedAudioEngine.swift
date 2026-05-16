@@ -16,17 +16,25 @@ public final class SharedAudioEngine {
     }
 
     private var isSessionActive = false
-    
+
     // MARK: - Configuration
-    
+
     private var inputSampleRate: Double = 16000
     private var outputSampleRate: Double = 24000
-    
-    /// Configure audio sample rates
-    public func configure(inputSampleRate: Double, outputSampleRate: Double) {
+    private var sessionCategory: AVAudioSession.Category = .playAndRecord
+    private var sessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth]
+
+    /// Configure audio sample rates and session behaviour from NovaSonicConfiguration.
+    public func configure(
+        inputSampleRate: Double,
+        outputSampleRate: Double,
+        sessionCategory: AVAudioSession.Category = .playAndRecord,
+        sessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth]
+    ) {
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
-        // Remove verbose config log - not needed for normal debugging
+        self.sessionCategory = sessionCategory
+        self.sessionOptions = sessionOptions
     }
 
     private init() {
@@ -55,29 +63,22 @@ public final class SharedAudioEngine {
     }
 
     // Must be called before starting the engine.
-    // Configures category, sample rate, and buffer duration.
     func activateSession() throws {
         if isSessionActive { return }
         let session = AVAudioSession.sharedInstance()
 
-        try session.setCategory(.playAndRecord,
-                                mode: .videoChat,
-                                options: [.defaultToSpeaker, .allowBluetooth])
-
-        // Configure audio session with dynamic sample rate
+        try session.setCategory(sessionCategory, mode: .videoChat, options: sessionOptions)
         try session.setPreferredSampleRate(inputSampleRate)
-        let preferredBufDur = Double(256) / inputSampleRate  // Buffer duration based on sample rate
+        let preferredBufDur = Double(256) / inputSampleRate
         try session.setPreferredIOBufferDuration(preferredBufDur)
-
         try session.setActive(true, options: [])
         isSessionActive = true
     }
 
-    // Starts (or no-ops if already running)
     func startEngine() throws {
         let eng = engine
         guard !eng.isRunning else { return }
-        _ = eng.inputNode      // force node creation
+        _ = eng.inputNode
         eng.prepare()
         try eng.start()
         NovaSonicLogger.standard("✅ Audio engine started")
@@ -93,8 +94,8 @@ public final class SharedAudioEngine {
         if eng.isRunning { eng.stop() }
         eng.reset()
         _engine = AVAudioEngine()
+        isSessionActive = false  // must clear before re-activating so activateSession() runs fully
         try activateSession()
-        // Remove verbose reset log - not needed
     }
 
     func stop() {
@@ -114,11 +115,9 @@ public final class SharedAudioEngine {
     func handleForegroundTransition() {
         try? activateSession()
     }
-    
-    // Additional methods for compatibility with existing code
+
     func checkForAudioConflicts() {
-        let session = AVAudioSession.sharedInstance()
-        // Remove verbose audio conflict checking - too detailed for normal use
+        // Reserved for future conflict detection logic.
     }
 }
 
