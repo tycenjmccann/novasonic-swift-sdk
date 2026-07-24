@@ -125,13 +125,17 @@ public struct BedrockEvents {
         return encodeJSON(event)
     }
 
-    public static func textInputEvent(promptName: String, contentName: String) -> String {
+    /// System prompt content. `content` defaults to the generic assistant prompt so
+    /// existing callers are unchanged; pass configuration.systemPrompt to use the app's
+    /// own prompt — otherwise the caller's persona/guardrails are silently dropped.
+    public static func textInputEvent(promptName: String, contentName: String, content: String? = nil) -> String {
+        let systemPrompt = content ?? "You are Nova Sonic, a helpful voice assistant. You can answer questions, provide information, and have natural conversations. Keep your responses concise and conversational. You have access to tools that you can use when appropriate. When a user asks for information that might benefit from using a tool, consider using the available tools to provide more accurate and helpful responses."
         let event: [String: Any] = [
             "event": [
                 "textInput": [
                     "promptName": promptName,
                     "contentName": contentName,
-                    "content": "You are Nova Sonic, a helpful voice assistant. You can answer questions, provide information, and have natural conversations. Keep your responses concise and conversational. You have access to tools that you can use when appropriate. When a user asks for information that might benefit from using a tool, consider using the available tools to provide more accurate and helpful responses.",
+                    "content": systemPrompt,
                     "role": "SYSTEM"
                 ]
             ]
