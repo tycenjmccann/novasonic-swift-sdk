@@ -373,7 +373,7 @@ public class NovaSonicStreamManager: ObservableObject {
                     (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.endpointingSensitivity.rawValue), "sessionStart"),
                     (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
-                    (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName), "textInput"),
+                    (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
                     (BedrockEvents.contentEndEvent(promptName: promptName, contentName: contentName), "contentEnd")
                 ]
                 
