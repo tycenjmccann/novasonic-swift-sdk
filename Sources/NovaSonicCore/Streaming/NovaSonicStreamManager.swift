@@ -196,19 +196,28 @@ public class NovaSonicStreamManager: ObservableObject {
             NovaSonicLogger.error("❌ Invalid configuration: \(error.localizedDescription)")
             return
         }
+        let previousRegion = self.configuration?.region
         self.configuration = config
         self.selectedVoice = config.voice
-        
+
         // Initialize logging with configuration level
         NovaSonicLogger.initialize(level: config.logLevel)
-        
+
         // Use provided client or create default
         if let providedClient = bedrockClient {
             self.bedrockClient = providedClient
             NovaSonicLogger.standard("🔧 Using provided Bedrock client for authentication")
         } else {
-            // Fall back to default client creation (uses environment/default credentials)
-            NovaSonicLogger.standard("🔧 Using default Bedrock client creation")
+            // A cached default client is pinned to its region's endpoint. If the region
+            // changed (e.g. switching models across regions for the beta comparison),
+            // drop it so configureClient() rebuilds against the new endpoint — otherwise
+            // the new model ID would be sent to the old region and fail at stream open.
+            if let previousRegion, previousRegion != config.region {
+                self.bedrockClient = nil
+                NovaSonicLogger.standard("🔧 Region changed \(previousRegion) → \(config.region); rebuilding Bedrock client")
+            } else {
+                NovaSonicLogger.standard("🔧 Using default Bedrock client creation")
+            }
         }
         
         // Set up history manager - either custom or built-in DynamoDB
@@ -823,7 +832,12 @@ public class NovaSonicStreamManager: ObservableObject {
                 return
             }
 
-            withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
+            // Stamp only the FIRST audio chunk of the turn. Guarding here avoids mutating
+            // the @Published sessionMetrics on every packet (dozens/sec), which would
+            // redraw the whole voice UI throughout the assistant's response.
+            if sessionMetrics?.turns.last?.firstAudioChunkAt == nil {
+                withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
+            }
 
             #if IOS_AUDIO
             Task {

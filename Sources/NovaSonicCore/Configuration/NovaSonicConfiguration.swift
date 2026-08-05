@@ -258,6 +258,18 @@ public enum NovaSonicModel: String, CaseIterable, Codable {
         case .novaSonic25EA: return "Nova Sonic 2.5 (Early Access)"
         }
     }
+
+    /// AWS regions where this model is available (in-region), per the Bedrock model cards.
+    /// - v1: us-east-1, eu-north-1, ap-northeast-1
+    /// - v2: us-east-1, us-west-2, ap-northeast-1
+    /// - 2.5 EA: us-east-1 only (early access)
+    public var supportedRegions: [String] {
+        switch self {
+        case .novaSonic1: return ["us-east-1", "eu-north-1", "ap-northeast-1"]
+        case .novaSonic2: return ["us-east-1", "us-west-2", "ap-northeast-1"]
+        case .novaSonic25EA: return ["us-east-1"]
+        }
+    }
 }
 
 /// Turn detection sensitivity for Nova Sonic 2.0
@@ -354,13 +366,19 @@ public enum NovaSonicVoice: String, CaseIterable {
         }
     }
 
-    /// Voices introduced with Nova 2.0 — not available on the Nova Sonic 1 model.
-    /// (US/UK English + Spanish shipped with v1; everything else is v2-only.)
+    /// Voices not available on the Nova Sonic 1 model.
+    /// Per AWS's v1 voice list, v1 supports US/UK English, French (ambre, florian),
+    /// Italian (beatrice, lorenzo), German (greta, lennart), and Spanish. Everything
+    /// else — Australian (olivia), the extra German voice (tina), Portuguese, and
+    /// Hindi — was added with Nova 2.0.
+    /// Ref: https://docs.aws.amazon.com/nova/latest/userguide/available-voices.html
     public var isNova2Only: Bool {
         switch self {
-        case .matthew, .tiffany, .amy, .lupe, .carlos: return false
-        case .olivia, .florian, .ambre, .lorenzo, .beatrice,
-             .lennart, .tina, .greta, .camila, .leo, .aditi, .rohan: return true
+        case .matthew, .tiffany, .amy, .lupe, .carlos,
+             .ambre, .florian, .beatrice, .lorenzo, .greta, .lennart:
+            return false
+        case .olivia, .tina, .camila, .leo, .aditi, .rohan:
+            return true
         }
     }
 }
@@ -416,14 +434,8 @@ extension NovaSonicConfiguration {
     
     /// Validate configuration parameters
     public func validate() throws {
-        // Validate region - Nova Sonic 2 supports multiple regions
-        let supportedRegions = ["us-east-1", "us-west-2", "ap-northeast-1"]
-        guard supportedRegions.contains(region) else {
-            throw NovaSonicError.invalidConfiguration
-        }
-
-        // Nova 2.5 Early Access is served from us-east-1 (IAD) only.
-        if model == .novaSonic25EA && region != "us-east-1" {
+        // Supported regions depend on the model (per AWS model cards).
+        guard model.supportedRegions.contains(region) else {
             throw NovaSonicError.invalidConfiguration
         }
 

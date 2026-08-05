@@ -268,6 +268,10 @@ public struct NovaSonicFloatingButton: View {
                 setupNovaSonic()
                 updateAnimations()
             }
+            .onChange(of: model) { _ in
+                // Reconfigure when the host switches model while this view stays on screen.
+                setupNovaSonic()
+            }
             .onDisappear {
                 // Critical: Stop streaming to prevent crashes when navigating away
                 if streamManager.isStreaming {

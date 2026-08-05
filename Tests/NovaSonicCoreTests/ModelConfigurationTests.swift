@@ -34,15 +34,39 @@ final class ModelConfigurationTests: XCTestCase {
         XCTAssertThrowsError(try cfg.validate())
     }
 
-    // MARK: - v1 + Nova 2.0-only voice (PR #3 review, Codex finding 4)
+    // MARK: - Per-model region support (PR #4 review, Codex)
+
+    func testV1SupportedRegions() {
+        // v1: us-east-1 / eu-north-1 / ap-northeast-1 — NOT us-west-2.
+        XCTAssertNoThrow(try NovaSonicConfiguration(region: "us-east-1", model: .novaSonic1).validate())
+        XCTAssertNoThrow(try NovaSonicConfiguration(region: "eu-north-1", model: .novaSonic1).validate())
+        XCTAssertNoThrow(try NovaSonicConfiguration(region: "ap-northeast-1", model: .novaSonic1).validate())
+        XCTAssertThrowsError(try NovaSonicConfiguration(region: "us-west-2", model: .novaSonic1).validate(),
+                             "v1 is not available in us-west-2")
+    }
+
+    func testV2RegionsRejectEUNorth1() {
+        // eu-north-1 is a v1 region, not a v2 region.
+        XCTAssertThrowsError(try NovaSonicConfiguration(region: "eu-north-1", model: .novaSonic2).validate())
+    }
+
+    func testEarlyAccessOnlyUSEast1() {
+        XCTAssertEqual(NovaSonicModel.novaSonic25EA.supportedRegions, ["us-east-1"])
+    }
+
+    // MARK: - v1 + Nova 2.0-only voice (PR #3/#4 review, Codex)
 
     func testNovaSonic1WithNova2OnlyVoiceIsRejected() {
+        // olivia (Australian) was introduced with Nova 2.0 — reject on v1.
         let cfg = NovaSonicConfiguration(region: "us-east-1", model: .novaSonic1, voice: .olivia)
         XCTAssertThrowsError(try cfg.validate(), "v1 + a Nova 2.0-only voice must be rejected before stream open")
     }
 
     func testNovaSonic1WithV1SafeVoiceIsAccepted() {
-        for voice in [NovaSonicVoice.matthew, .tiffany, .amy, .lupe, .carlos] {
+        // Per AWS v1 voice list: US/UK English, French, Italian, German, Spanish.
+        let v1Voices: [NovaSonicVoice] = [.matthew, .tiffany, .amy, .lupe, .carlos,
+                                          .ambre, .florian, .beatrice, .lorenzo, .greta, .lennart]
+        for voice in v1Voices {
             let cfg = NovaSonicConfiguration(region: "us-east-1", model: .novaSonic1, voice: voice)
             XCTAssertNoThrow(try cfg.validate(), "\(voice) shipped with v1 and must be accepted")
         }
@@ -54,10 +78,15 @@ final class ModelConfigurationTests: XCTestCase {
     }
 
     func testVoiceNova2OnlyClassification() {
-        XCTAssertFalse(NovaSonicVoice.matthew.isNova2Only)
-        XCTAssertFalse(NovaSonicVoice.lupe.isNova2Only)
-        XCTAssertTrue(NovaSonicVoice.olivia.isNova2Only)
-        XCTAssertTrue(NovaSonicVoice.aditi.isNova2Only)
+        // v1-available voices
+        for v in [NovaSonicVoice.matthew, .tiffany, .amy, .lupe, .carlos,
+                  .ambre, .florian, .beatrice, .lorenzo, .greta, .lennart] {
+            XCTAssertFalse(v.isNova2Only, "\(v) is a v1 voice")
+        }
+        // v2-only voices
+        for v in [NovaSonicVoice.olivia, .tina, .camila, .leo, .aditi, .rohan] {
+            XCTAssertTrue(v.isNova2Only, "\(v) is v2-only")
+        }
     }
 }
 

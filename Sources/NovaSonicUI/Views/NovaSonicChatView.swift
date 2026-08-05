@@ -259,6 +259,10 @@ public struct NovaSonicChatView: View {
         .onAppear {
             setupNovaSonic()
         }
+        .onChange(of: model) { _ in
+            // Reconfigure when the host switches model while this view stays on screen.
+            setupNovaSonic()
+        }
         .onDisappear {
             // Safety: Stop streaming if view disappears during active session
             if streamManager.isStreaming {
