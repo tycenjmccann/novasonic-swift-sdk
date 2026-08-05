@@ -39,6 +39,11 @@ let package = Package(
             name: "NovaSonicUI",
             dependencies: ["NovaSonicCore"],
             path: "Sources/NovaSonicUI"
+        ),
+        .testTarget(
+            name: "NovaSonicCoreTests",
+            dependencies: ["NovaSonicCore"],
+            path: "Tests/NovaSonicCoreTests"
         )
     ]
 )

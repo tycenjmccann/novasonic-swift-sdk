@@ -18,6 +18,10 @@ public struct NovaSonicChatView: View {
     @ObservedObject public var streamManager: NovaSonicStreamManager
     
     // Direct configuration properties
+    /// Model to use. `nil` means "don't touch a stream manager the host already configured";
+    /// an explicit value makes this view own the configuration (and switch models between
+    /// sessions when it changes). Defaults to `nil` so pre-configured hosts are never clobbered.
+    public let model: NovaSonicModel?
     public let voice: NovaSonicVoice
     public let region: String
     public let temperature: Double
@@ -60,6 +64,7 @@ public struct NovaSonicChatView: View {
     
     public init(
         streamManager: NovaSonicStreamManager,
+        model: NovaSonicModel? = nil,
         voice: NovaSonicVoice = .tiffany,
         region: String = "us-east-1",
         temperature: Double = 0.7,
@@ -83,6 +88,7 @@ public struct NovaSonicChatView: View {
         speakFirst: Bool = false
     ) {
         self.streamManager = streamManager
+        self.model = model
         self.voice = voice
         self.region = region
         self.temperature = temperature
@@ -251,6 +257,10 @@ public struct NovaSonicChatView: View {
         }
         .padding(.bottom, 20)
         .onAppear {
+            setupNovaSonic()
+        }
+        .onChange(of: model) { _ in
+            // Reconfigure when the host switches model while this view stays on screen.
             setupNovaSonic()
         }
         .onDisappear {
@@ -596,9 +606,10 @@ public struct NovaSonicChatView: View {
     
     /// Update voice configuration when voice selection changes
     private func updateVoiceConfiguration() {
-        // Create new configuration with updated voice
+        // Preserve the model already in effect (host-supplied or view default).
         let newConfig = NovaSonicConfiguration(
             region: region,
+            model: model ?? streamManager.configuredModel ?? .novaSonic2,
             voice: selectedVoice,
             temperature: temperature,
             topP: topP,
@@ -624,13 +635,19 @@ public struct NovaSonicChatView: View {
     
     /// Set up Nova Sonic configuration and tools
     private func setupNovaSonic() {
-        // Only configure if not already configured (to avoid overriding existing setup)
-        if !streamManager.isConfigured {
-            NovaSonicLogger.standard("NovaSonicChatView: Configuring stream manager")
-            
+        // If the host didn't pass a `model:`, treat the stream manager as host-owned:
+        // configure it only if never configured, and never overwrite an existing config.
+        // When a `model:` IS supplied, this view owns the config and may re-apply it to
+        // switch models between sessions (never mid-stream).
+        let modelChanged = model != nil && streamManager.configuredModel != model && !streamManager.isStreaming
+        if !streamManager.isConfigured || modelChanged {
+            let resolvedModel = model ?? streamManager.configuredModel ?? .novaSonic2
+            NovaSonicLogger.standard("NovaSonicChatView: Configuring stream manager (model: \(resolvedModel.id))")
+
             // Create configuration from individual parameters
             let configuration = NovaSonicConfiguration(
                 region: region,
+                model: resolvedModel,
                 voice: voice,
                 temperature: temperature,
                 topP: topP,

@@ -26,6 +26,10 @@ public struct NovaSonicFloatingButton: View {
     @ObservedObject public var streamManager: NovaSonicStreamManager
     
     // Direct configuration properties
+    /// Model to use. `nil` means "don't touch a stream manager the host already configured";
+    /// an explicit value makes this view own the configuration (and switch models between
+    /// sessions when it changes). Defaults to `nil` so pre-configured hosts are never clobbered.
+    public let model: NovaSonicModel?
     public let voice: NovaSonicVoice
     public let temperature: Double
     public let topP: Double
@@ -64,6 +68,7 @@ public struct NovaSonicFloatingButton: View {
     
     public init(
         streamManager: NovaSonicStreamManager,
+        model: NovaSonicModel? = nil,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -86,6 +91,7 @@ public struct NovaSonicFloatingButton: View {
         onStateChange: ((Bool) -> Void)? = nil
     ) {
         self.streamManager = streamManager
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -252,6 +258,8 @@ public struct NovaSonicFloatingButton: View {
             .frame(width: 75, height: 75)
             .background(Color.clear)
             .contentShape(Circle())
+            .accessibilityLabel("Voice Assistant")
+            .accessibilityIdentifier("novaSonicFloatingButton")
             .onTapGesture {
                 NovaSonicLogger.standard("Floating button tapped - connectionStatus: \(streamManager.connectionStatus), isStreaming: \(streamManager.isStreaming)")
                 handleButtonTap()
@@ -259,6 +267,10 @@ public struct NovaSonicFloatingButton: View {
             .onAppear {
                 setupNovaSonic()
                 updateAnimations()
+            }
+            .onChange(of: model) { _ in
+                // Reconfigure when the host switches model while this view stays on screen.
+                setupNovaSonic()
             }
             .onDisappear {
                 // Critical: Stop streaming to prevent crashes when navigating away
@@ -418,13 +430,21 @@ public struct NovaSonicFloatingButton: View {
     
     /// Set up Nova Sonic configuration and tools
     private func setupNovaSonic() {
-        // Only configure if not already configured (to avoid overriding existing setup)
-        if !streamManager.isConfigured {
-            NovaSonicLogger.standard("NovaSonicFloatingButton: Configuring stream manager")
-            
+        // If the host didn't pass a `model:`, treat the stream manager as host-owned:
+        // configure it only if it has never been configured, and never overwrite an
+        // existing configuration (which could hold host-supplied creds/region/prompt).
+        // When a `model:` IS supplied, this view owns the config and may re-apply it to
+        // switch models between sessions (never mid-stream — the active session keeps its
+        // model until stopped).
+        let modelChanged = model != nil && streamManager.configuredModel != model && !streamManager.isStreaming
+        if !streamManager.isConfigured || modelChanged {
+            let resolvedModel = model ?? streamManager.configuredModel ?? .novaSonic2
+            NovaSonicLogger.standard("NovaSonicFloatingButton: Configuring stream manager (model: \(resolvedModel.id))")
+
             // Create configuration from individual parameters
             let configuration = NovaSonicConfiguration(
                 region: dynamoDBRegion,
+                model: resolvedModel,
                 voice: voice,
                 temperature: temperature,
                 topP: topP,

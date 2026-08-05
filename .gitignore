@@ -123,8 +123,14 @@ Thumbs.db
 *.xcodeproj/project.xcworkspace/xcuserdata/
 
 # Claude AI
-.claude/
+.claude/*
+# Ship the reusable integration skill with the repo
+!.claude/skills/
+!.claude/skills/**
 
 # Temporary files
 Package-Minimal.swift
 novaSonicPackageTestApp/
+
+# Example app resolved deps (build-generated)
+Examples/**/xcshareddata/swiftpm/Package.resolved

@@ -103,3 +103,18 @@ The host app must include `hello.wav` in its bundle for the audio fallback path.
 - **AWS SDK minimum version**: `from: "1.2.59"` — using a range is required for a distributed library (an `exact:` pin causes SPM resolution failures for any consumer that uses the AWS SDK elsewhere). If the bidirectional streaming API breaks in a newer SDK release, bump the lower bound after verifying compatibility.
 - **Conversation IDs**: If no `currentConversationId` is set, `promptName` (a UUID generated at init) is used as the conversation ID for persistence.
 - **Log levels**: `NovaSonicLogLevel` has `.off`, `.minimal`, `.standard` (default), `.verbose`. Set in `NovaSonicConfiguration(logLevel:)`. Use `NovaSonicLogger.verbose()` for debug-only output.
+
+## Host Integration
+
+Two entry points for host apps (see `README.md` for full examples):
+
+- **`NovaSonicFloatingButton`** — overlay button for adding voice to an existing app; init params (voice, systemPrompt, tools, DynamoDB flags) drive `configure` internally.
+- **`NovaSonicChatView`** — full chat UI with optional conversation history (`showConversationHistory`).
+
+Both wrap a single `@StateObject NovaSonicStreamManager` owned by the host and call `.configure(...)` from their init params.
+
+## Reference Docs
+
+`Documentation/` holds the public API contract — consult before changing signatures or error surfaces:
+
+- `Getting-Started.md`, `API-Reference.md`, `ErrorHandling.md`

@@ -11,7 +11,10 @@ public struct NovaSonicConfiguration {
     
     /// AWS region for Nova Sonic (supports us-east-1, us-west-2, ap-northeast-1)
     public let region: String
-    
+
+    /// Nova Sonic model version to invoke (defaults to Nova Sonic 2)
+    public let model: NovaSonicModel
+
     /// Voice to use for speech synthesis
     public let voice: NovaSonicVoice
     
@@ -90,6 +93,7 @@ public struct NovaSonicConfiguration {
     
     public init(
         region: String = "us-east-1",
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -109,6 +113,7 @@ public struct NovaSonicConfiguration {
         logLevel: NovaSonicLogLevel = .standard
     ) {
         self.region = region
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -137,6 +142,7 @@ public struct NovaSonicConfiguration {
     /// Full initialization with iOS audio session control
     public init(
         region: String = "us-east-1",
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -158,6 +164,7 @@ public struct NovaSonicConfiguration {
         logLevel: NovaSonicLogLevel = .standard
     ) {
         self.region = region
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -231,6 +238,39 @@ public extension NovaSonicConfiguration {
 }
 
 // MARK: - Supporting Types
+
+/// Nova Sonic model version. The raw value is the Bedrock model ID.
+public enum NovaSonicModel: String, CaseIterable, Codable {
+    /// Nova Sonic 1 (original release; may be retired).
+    case novaSonic1 = "amazon.nova-sonic-v1:0"
+    /// Nova Sonic 2 (current production baseline; SDK default).
+    case novaSonic2 = "amazon.nova-2-sonic-v1:0"
+    /// Nova 2.5 Sonic Early Access — us-east-1 only, allow-listed accounts.
+    case novaSonic25EA = "amazon.nova-2-sonic-early-access:0"
+
+    /// The Bedrock model ID passed to `InvokeModelWithBidirectionalStream`.
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .novaSonic1: return "Nova Sonic 1"
+        case .novaSonic2: return "Nova Sonic 2"
+        case .novaSonic25EA: return "Nova Sonic 2.5 (Early Access)"
+        }
+    }
+
+    /// AWS regions where this model is available (in-region), per the Bedrock model cards.
+    /// - v1: us-east-1, eu-north-1, ap-northeast-1
+    /// - v2: us-east-1, us-west-2, ap-northeast-1
+    /// - 2.5 EA: us-east-1 only (early access)
+    public var supportedRegions: [String] {
+        switch self {
+        case .novaSonic1: return ["us-east-1", "eu-north-1", "ap-northeast-1"]
+        case .novaSonic2: return ["us-east-1", "us-west-2", "ap-northeast-1"]
+        case .novaSonic25EA: return ["us-east-1"]
+        }
+    }
+}
 
 /// Turn detection sensitivity for Nova Sonic 2.0
 /// Controls how quickly Nova Sonic takes its turn in conversation
@@ -325,6 +365,22 @@ public enum NovaSonicVoice: String, CaseIterable {
         case .aditi, .rohan: return true  // Hindi + English (code switching)
         }
     }
+
+    /// Voices not available on the Nova Sonic 1 model.
+    /// Per AWS's v1 voice list, v1 supports US/UK English, French (ambre, florian),
+    /// Italian (beatrice, lorenzo), German (greta, lennart), and Spanish. Everything
+    /// else — Australian (olivia), the extra German voice (tina), Portuguese, and
+    /// Hindi — was added with Nova 2.0.
+    /// Ref: https://docs.aws.amazon.com/nova/latest/userguide/available-voices.html
+    public var isNova2Only: Bool {
+        switch self {
+        case .matthew, .tiffany, .amy, .lupe, .carlos,
+             .ambre, .florian, .beatrice, .lorenzo, .greta, .lennart:
+            return false
+        case .olivia, .tina, .camila, .leo, .aditi, .rohan:
+            return true
+        }
+    }
 }
 
 /// Audio sample rate options supported by Nova Sonic
@@ -378,12 +434,17 @@ extension NovaSonicConfiguration {
     
     /// Validate configuration parameters
     public func validate() throws {
-        // Validate region - Nova Sonic 2 supports multiple regions
-        let supportedRegions = ["us-east-1", "us-west-2", "ap-northeast-1"]
-        guard supportedRegions.contains(region) else {
+        // Supported regions depend on the model (per AWS model cards).
+        guard model.supportedRegions.contains(region) else {
             throw NovaSonicError.invalidConfiguration
         }
-        
+
+        // Nova Sonic 1 predates the Nova 2.0 voice set — reject v1 + a v2-only voice up front
+        // rather than letting Bedrock fail the stream at open time.
+        if model == .novaSonic1 && voice.isNova2Only {
+            throw NovaSonicError.invalidConfiguration
+        }
+
         // Validate temperature range
         guard temperature >= 0.0 && temperature <= 1.0 else {
             throw NovaSonicError.invalidConfiguration
