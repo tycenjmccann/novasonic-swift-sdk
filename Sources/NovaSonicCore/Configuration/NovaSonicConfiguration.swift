@@ -11,7 +11,10 @@ public struct NovaSonicConfiguration {
     
     /// AWS region for Nova Sonic (supports us-east-1, us-west-2, ap-northeast-1)
     public let region: String
-    
+
+    /// Nova Sonic model version to invoke (defaults to Nova Sonic 2)
+    public let model: NovaSonicModel
+
     /// Voice to use for speech synthesis
     public let voice: NovaSonicVoice
     
@@ -90,6 +93,7 @@ public struct NovaSonicConfiguration {
     
     public init(
         region: String = "us-east-1",
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -109,6 +113,7 @@ public struct NovaSonicConfiguration {
         logLevel: NovaSonicLogLevel = .standard
     ) {
         self.region = region
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -137,6 +142,7 @@ public struct NovaSonicConfiguration {
     /// Full initialization with iOS audio session control
     public init(
         region: String = "us-east-1",
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -158,6 +164,7 @@ public struct NovaSonicConfiguration {
         logLevel: NovaSonicLogLevel = .standard
     ) {
         self.region = region
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -231,6 +238,27 @@ public extension NovaSonicConfiguration {
 }
 
 // MARK: - Supporting Types
+
+/// Nova Sonic model version. The raw value is the Bedrock model ID.
+public enum NovaSonicModel: String, CaseIterable, Codable {
+    /// Nova Sonic 1 (original release; may be retired).
+    case novaSonic1 = "amazon.nova-sonic-v1:0"
+    /// Nova Sonic 2 (current production baseline; SDK default).
+    case novaSonic2 = "amazon.nova-2-sonic-v1:0"
+    /// Nova 2.5 Sonic Early Access — us-east-1 only, allow-listed accounts.
+    case novaSonic25EA = "amazon.nova-2-sonic-early-access:0"
+
+    /// The Bedrock model ID passed to `InvokeModelWithBidirectionalStream`.
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .novaSonic1: return "Nova Sonic 1"
+        case .novaSonic2: return "Nova Sonic 2"
+        case .novaSonic25EA: return "Nova Sonic 2.5 (Early Access)"
+        }
+    }
+}
 
 /// Turn detection sensitivity for Nova Sonic 2.0
 /// Controls how quickly Nova Sonic takes its turn in conversation
@@ -383,7 +411,12 @@ extension NovaSonicConfiguration {
         guard supportedRegions.contains(region) else {
             throw NovaSonicError.invalidConfiguration
         }
-        
+
+        // Nova 2.5 Early Access is served from us-east-1 (IAD) only.
+        if model == .novaSonic25EA && region != "us-east-1" {
+            throw NovaSonicError.invalidConfiguration
+        }
+
         // Validate temperature range
         guard temperature >= 0.0 && temperature <= 1.0 else {
             throw NovaSonicError.invalidConfiguration

@@ -38,6 +38,14 @@ struct ContentView: View {
 }
 ```
 
+### Runnable demo
+
+`Examples/PackageTester` is a minimal SwiftUI app wired to the SDK via a local package reference — open `Examples/PackageTester/PackageTester.xcodeproj` and run. It showcases both `NovaSonicFloatingButton` and `NovaSonicChatView` with a sample `ChangeMyHeartTool`.
+
+### Integrate with Claude Code
+
+This repo ships a Claude Code skill at `.claude/skills/add-nova-sonic/`. In a project that uses this SDK, run `/add-nova-sonic` and Claude will add the package dependency, wire a floating button or chat view, scaffold a custom `NovaSonicTool`, and set the required microphone permission — following the `Examples/PackageTester` reference.
+
 ## Two Integration Approaches
 
 ### Option 1: Floating Button (Recommended for Existing Apps)

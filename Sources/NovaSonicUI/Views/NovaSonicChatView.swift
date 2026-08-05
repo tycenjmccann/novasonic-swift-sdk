@@ -18,6 +18,7 @@ public struct NovaSonicChatView: View {
     @ObservedObject public var streamManager: NovaSonicStreamManager
     
     // Direct configuration properties
+    public let model: NovaSonicModel
     public let voice: NovaSonicVoice
     public let region: String
     public let temperature: Double
@@ -60,6 +61,7 @@ public struct NovaSonicChatView: View {
     
     public init(
         streamManager: NovaSonicStreamManager,
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         region: String = "us-east-1",
         temperature: Double = 0.7,
@@ -83,6 +85,7 @@ public struct NovaSonicChatView: View {
         speakFirst: Bool = false
     ) {
         self.streamManager = streamManager
+        self.model = model
         self.voice = voice
         self.region = region
         self.temperature = temperature
@@ -599,6 +602,7 @@ public struct NovaSonicChatView: View {
         // Create new configuration with updated voice
         let newConfig = NovaSonicConfiguration(
             region: region,
+            model: model,
             voice: selectedVoice,
             temperature: temperature,
             topP: topP,
@@ -631,6 +635,7 @@ public struct NovaSonicChatView: View {
             // Create configuration from individual parameters
             let configuration = NovaSonicConfiguration(
                 region: region,
+                model: model,
                 voice: voice,
                 temperature: temperature,
                 topP: topP,

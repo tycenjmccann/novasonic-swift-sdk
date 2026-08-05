@@ -23,6 +23,9 @@ public class NovaSonicStreamManager: ObservableObject {
     @Published public var messages: [ChatMessage] = []
     @Published public var selectedVoice: NovaSonicVoice = .tiffany
     @Published public var lastError: NovaSonicError?
+
+    /// Latency/turn metrics for the current (or most recent) session. Reset on each session start.
+    @Published public private(set) var sessionMetrics: NovaSonicSessionMetrics?
     
     // MARK: - Private Helpers
 
@@ -37,6 +40,11 @@ public class NovaSonicStreamManager: ObservableObject {
     /// Check if the stream manager has been configured
     public var isConfigured: Bool {
         return configuration != nil
+    }
+
+    /// The model the manager is currently configured for, if any
+    public var configuredModel: NovaSonicModel? {
+        return configuration?.model
     }
     
     // MARK: - Delegate
@@ -91,7 +99,82 @@ public class NovaSonicStreamManager: ObservableObject {
     // Logging counters
     private var chunkCounter = 0
     private var didReceiveTextOutput = false
+
+    // MARK: - Metrics
+    /// Monotonic reference captured at session start; all metric timestamps are relative to it.
+    private var metricsEpoch: DispatchTime?
+
+    /// Seconds elapsed since the session's monotonic epoch (0 if metrics not started).
+    private func elapsed() -> TimeInterval {
+        guard let epoch = metricsEpoch else { return 0 }
+        return Double(DispatchTime.now().uptimeNanoseconds - epoch.uptimeNanoseconds) / 1_000_000_000
+    }
+
+    /// Mutate the in-progress turn, creating one if none exists yet.
+    private func withCurrentTurn(_ body: (inout TurnMetric) -> Void) {
+        guard sessionMetrics != nil else { return }
+        if sessionMetrics!.turns.isEmpty {
+            sessionMetrics!.turns.append(TurnMetric(turnIndex: 0))
+        }
+        body(&sessionMetrics!.turns[sessionMetrics!.turns.count - 1])
+    }
+
+    /// Start a new turn when a user utterance arrives, unless the current turn is still empty.
+    private func beginTurnIfNeeded() {
+        guard sessionMetrics != nil else { return }
+        if let last = sessionMetrics!.turns.last, last.userTranscriptAt == nil {
+            return // reuse the pre-seeded/empty turn
+        }
+        sessionMetrics!.turns.append(TurnMetric(turnIndex: sessionMetrics!.turns.count))
+    }
+
+    /// Stamp the send-time on the most recent pending tool call matching this id.
+    private func recordToolResultSent(toolUseId: String) {
+        guard sessionMetrics != nil else { return }
+        let now = elapsed()
+        for t in sessionMetrics!.turns.indices {
+            if let c = sessionMetrics!.turns[t].toolCalls.lastIndex(where: { $0.toolUseId == toolUseId && $0.resultSentAt == nil }) {
+                sessionMetrics!.turns[t].toolCalls[c].resultSentAt = now
+                return
+            }
+        }
+    }
     
+    // MARK: - Session Export
+
+    /// A single session's transcript + metrics, written to disk for offline model comparison.
+    public struct SessionExport: Codable {
+        public let modelId: String
+        public let startedAt: Date
+        public let messages: [ChatMessage]
+        public let metrics: NovaSonicSessionMetrics?
+    }
+
+    /// Serialize the current session (transcript + latency metrics) to a JSON file in the
+    /// app's Documents directory. Returns the file URL. Used to capture beta-test runs for
+    /// diffing across Nova Sonic model versions.
+    @discardableResult
+    public func exportSession() throws -> URL {
+        let export = SessionExport(
+            modelId: sessionMetrics?.modelId ?? configuration?.model.id ?? NovaSonicModel.novaSonic2.id,
+            startedAt: sessionMetrics?.startedAt ?? Date(),
+            messages: messages,
+            metrics: sessionMetrics
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(export)
+
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let stamp = ISO8601DateFormatter().string(from: export.startedAt).replacingOccurrences(of: ":", with: "-")
+        let safeModel = export.modelId.replacingOccurrences(of: ":", with: "_").replacingOccurrences(of: "/", with: "_")
+        let url = dir.appendingPathComponent("novasonic-session-\(safeModel)-\(stamp).json")
+        try data.write(to: url, options: .atomic)
+        NovaSonicLogger.standard("📤 Session exported to \(url.lastPathComponent)")
+        return url
+    }
+
     // MARK: - Initialization
     public init() {}
     
@@ -317,10 +400,15 @@ public class NovaSonicStreamManager: ObservableObject {
         updateIsStreaming(true)  // Thread-safe update
         didReceiveTextOutput = false
         updateConnectionStatus(.connecting)  // Thread-safe update
-        
+
         // Reset tracking variables
         speculativeMessageIds = []
         finalMessageCount = 0
+
+        // Start a fresh metrics session on a monotonic clock.
+        metricsEpoch = DispatchTime.now()
+        let modelId = configuration?.model.id ?? NovaSonicModel.novaSonic2.id
+        sessionMetrics = NovaSonicSessionMetrics(modelId: modelId, startedAt: Date())
         
         let eventStream = createEventStream()
         
@@ -333,6 +421,8 @@ public class NovaSonicStreamManager: ObservableObject {
             NovaSonicLogger.standard("🔵 Bedrock stream invoked successfully!")
             self.stream = result
             
+            sessionMetrics?.connectionReadyAt = elapsed()
+
             // Delay showing connected status by 2.0 seconds to align with actual Nova Sonic readiness
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                 self.connectionStatus = .connected
@@ -370,7 +460,8 @@ public class NovaSonicStreamManager: ObservableObject {
                 
                 // Send text initialization events for NEW CHATS.
                 var textInitEvents: [(String, String)] = [
-                    (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.endpointingSensitivity.rawValue), "sessionStart"),
+                    // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
+                    (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
                     (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
@@ -493,7 +584,7 @@ public class NovaSonicStreamManager: ObservableObject {
     private func createStreamRequest(eventStream: AsyncThrowingStream<BedrockRuntimeClientTypes.InvokeModelWithBidirectionalStreamInput, Error>) -> InvokeModelWithBidirectionalStreamInput {
         return InvokeModelWithBidirectionalStreamInput(
             body: eventStream,
-            modelId: "amazon.nova-2-sonic-v1:0"  // Nova 2.0
+            modelId: configuration?.model.id ?? NovaSonicModel.novaSonic2.id
         )
     }
     
@@ -624,6 +715,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 
                 if generationStage == "SPECULATIVE" {
                     isSpeculativeText = true
+                    withCurrentTurn { if $0.firstSpeculativeTextAt == nil { $0.firstSpeculativeTextAt = elapsed() } }
                     // Process speculative text silently
                 } else if generationStage == "FINAL" {
                     isSpeculativeText = false
@@ -645,6 +737,7 @@ public class NovaSonicStreamManager: ObservableObject {
             if content.contains("{ \"interrupted\" : true }") {
                 NovaSonicLogger.standard("🚨 BARGE-IN DETECTED - User interrupted the assistant!")
                 NovaSonicLogger.verbose("🚨 Original content: \(content)")
+                withCurrentTurn { $0.bargeIn = true }
                 
                 // Handle interruption by flushing audio queue
                 #if IOS_AUDIO
@@ -662,6 +755,8 @@ public class NovaSonicStreamManager: ObservableObject {
             }
             
             if role.uppercased() == "USER" {
+                beginTurnIfNeeded()
+                withCurrentTurn { if $0.userTranscriptAt == nil { $0.userTranscriptAt = elapsed() } }
                 appendMessage(content, role: role, isSpeculative: false)
                 delegate?.didReceiveTranscription(content, isFinal: true)
             } else if role.uppercased() == "ASSISTANT" {
@@ -696,12 +791,15 @@ public class NovaSonicStreamManager: ObservableObject {
             
             // Notify delegate about tool call
             delegate?.didReceiveToolCall(toolName, parameters: capturedParameters, toolUseId: toolUseId)
-            
+
+            withCurrentTurn { $0.toolCalls.append(ToolCallMetric(toolName: toolName, toolUseId: toolUseId, requestedAt: elapsed())) }
+
             // Execute tool using the registry
             Task {
                 let result = await NovaSonicToolRegistry.shared.executeToolCall(toolName, parameters: capturedParameters, toolUseId: toolUseId)
                 do {
                     try await self.sendToolResultBack(toolUseId: toolUseId, resultJSON: result)
+                    self.recordToolResultSent(toolUseId: toolUseId)
                 } catch {
                     NovaSonicLogger.error("❌ Failed to send tool result: \(error)")
                 }
@@ -715,7 +813,9 @@ public class NovaSonicStreamManager: ObservableObject {
             if !isStreaming {
                 return
             }
-            
+
+            withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
+
             #if IOS_AUDIO
             Task {
                 try await audioManager.playAudio(audioData)

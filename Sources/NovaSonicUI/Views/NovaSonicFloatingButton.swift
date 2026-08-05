@@ -26,6 +26,7 @@ public struct NovaSonicFloatingButton: View {
     @ObservedObject public var streamManager: NovaSonicStreamManager
     
     // Direct configuration properties
+    public let model: NovaSonicModel
     public let voice: NovaSonicVoice
     public let temperature: Double
     public let topP: Double
@@ -64,6 +65,7 @@ public struct NovaSonicFloatingButton: View {
     
     public init(
         streamManager: NovaSonicStreamManager,
+        model: NovaSonicModel = .novaSonic2,
         voice: NovaSonicVoice = .tiffany,
         temperature: Double = 0.7,
         topP: Double = 0.9,
@@ -86,6 +88,7 @@ public struct NovaSonicFloatingButton: View {
         onStateChange: ((Bool) -> Void)? = nil
     ) {
         self.streamManager = streamManager
+        self.model = model
         self.voice = voice
         self.temperature = temperature
         self.topP = topP
@@ -252,6 +255,8 @@ public struct NovaSonicFloatingButton: View {
             .frame(width: 75, height: 75)
             .background(Color.clear)
             .contentShape(Circle())
+            .accessibilityLabel("Voice Assistant")
+            .accessibilityIdentifier("novaSonicFloatingButton")
             .onTapGesture {
                 NovaSonicLogger.standard("Floating button tapped - connectionStatus: \(streamManager.connectionStatus), isStreaming: \(streamManager.isStreaming)")
                 handleButtonTap()
@@ -418,13 +423,15 @@ public struct NovaSonicFloatingButton: View {
     
     /// Set up Nova Sonic configuration and tools
     private func setupNovaSonic() {
-        // Only configure if not already configured (to avoid overriding existing setup)
-        if !streamManager.isConfigured {
-            NovaSonicLogger.standard("NovaSonicFloatingButton: Configuring stream manager")
+        // Reconfigure when unconfigured or when the requested model changed
+        // (never mid-stream — the active session keeps its model until stopped).
+        if !streamManager.isConfigured || (streamManager.configuredModel != model && !streamManager.isStreaming) {
+            NovaSonicLogger.standard("NovaSonicFloatingButton: Configuring stream manager (model: \(model.id))")
             
             // Create configuration from individual parameters
             let configuration = NovaSonicConfiguration(
                 region: dynamoDBRegion,
+                model: model,
                 voice: voice,
                 temperature: temperature,
                 topP: topP,
