@@ -353,6 +353,16 @@ public enum NovaSonicVoice: String, CaseIterable {
         case .aditi, .rohan: return true  // Hindi + English (code switching)
         }
     }
+
+    /// Voices introduced with Nova 2.0 — not available on the Nova Sonic 1 model.
+    /// (US/UK English + Spanish shipped with v1; everything else is v2-only.)
+    public var isNova2Only: Bool {
+        switch self {
+        case .matthew, .tiffany, .amy, .lupe, .carlos: return false
+        case .olivia, .florian, .ambre, .lorenzo, .beatrice,
+             .lennart, .tina, .greta, .camila, .leo, .aditi, .rohan: return true
+        }
+    }
 }
 
 /// Audio sample rate options supported by Nova Sonic
@@ -414,6 +424,12 @@ extension NovaSonicConfiguration {
 
         // Nova 2.5 Early Access is served from us-east-1 (IAD) only.
         if model == .novaSonic25EA && region != "us-east-1" {
+            throw NovaSonicError.invalidConfiguration
+        }
+
+        // Nova Sonic 1 predates the Nova 2.0 voice set — reject v1 + a v2-only voice up front
+        // rather than letting Bedrock fail the stream at open time.
+        if model == .novaSonic1 && voice.isNova2Only {
             throw NovaSonicError.invalidConfiguration
         }
 

@@ -131,3 +131,6 @@ Thumbs.db
 # Temporary files
 Package-Minimal.swift
 novaSonicPackageTestApp/
+
+# Example app resolved deps (build-generated)
+Examples/**/xcshareddata/swiftpm/Package.resolved

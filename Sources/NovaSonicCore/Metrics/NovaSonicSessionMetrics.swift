@@ -43,9 +43,12 @@ public struct TurnMetric: Codable, Equatable {
     public var toolCalls: [ToolCallMetric]
     public var bargeIn: Bool
 
-    /// Seconds from user transcript to first audio, if both are known.
+    /// Seconds from user transcript to first audio, if both are known and ordered correctly.
+    /// Returns nil when audio predates the transcript (e.g. a barge-in turn whose first
+    /// audio chunk belongs to the previous response) — such a value isn't a real latency.
     public var timeToFirstAudioSeconds: TimeInterval? {
-        guard let userTranscriptAt, let firstAudioChunkAt else { return nil }
+        guard let userTranscriptAt, let firstAudioChunkAt,
+              firstAudioChunkAt >= userTranscriptAt else { return nil }
         return firstAudioChunkAt - userTranscriptAt
     }
 

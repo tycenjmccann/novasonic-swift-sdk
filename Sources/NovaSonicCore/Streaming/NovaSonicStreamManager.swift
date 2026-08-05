@@ -119,11 +119,20 @@ public class NovaSonicStreamManager: ObservableObject {
         body(&sessionMetrics!.turns[sessionMetrics!.turns.count - 1])
     }
 
-    /// Start a new turn when a user utterance arrives, unless the current turn is still empty.
+    /// Start a new turn when a user utterance arrives.
+    ///
+    /// A turn is anchored to a user utterance. We only reuse the last turn if it is
+    /// *completely* empty — no user transcript AND no assistant activity yet. That way a
+    /// `speakFirst`/`initialTextPrompt` preamble (assistant audio before any user speech)
+    /// stays in its own turn 0 instead of being back-filled with a later `userTranscriptAt`,
+    /// which would make `timeToFirstAudioSeconds` negative.
     private func beginTurnIfNeeded() {
         guard sessionMetrics != nil else { return }
-        if let last = sessionMetrics!.turns.last, last.userTranscriptAt == nil {
-            return // reuse the pre-seeded/empty turn
+        if let last = sessionMetrics!.turns.last,
+           last.userTranscriptAt == nil,
+           last.firstAudioChunkAt == nil,
+           last.firstSpeculativeTextAt == nil {
+            return // reuse the truly-empty pre-seeded turn
         }
         sessionMetrics!.turns.append(TurnMetric(turnIndex: sessionMetrics!.turns.count))
     }
