@@ -234,21 +234,25 @@ final class SessionUpdateTests: XCTestCase {
         let json = BedrockEvents.sessionUpdateEvent(replace: ["Acme Mobile": "Acme Mobull"])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        let replaceDict = parsed["replace"] as? [String: String]
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        let replaceDict = sessionUpdate["replace"] as? [String: String]
         XCTAssertEqual(replaceDict, ["Acme Mobile": "Acme Mobull"])
         // No session subtree when only replace is set
-        XCTAssertNil(parsed["session"])
+        XCTAssertNil(sessionUpdate["session"])
     }
 
     func testSessionUpdateEventWithEmptyReplace() throws {
         let json = BedrockEvents.sessionUpdateEvent(replace: [:])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        let replaceDict = parsed["replace"] as? [String: String]
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        let replaceDict = sessionUpdate["replace"] as? [String: String]
         XCTAssertEqual(replaceDict, [:])
     }
 
@@ -256,12 +260,14 @@ final class SessionUpdateTests: XCTestCase {
         let json = BedrockEvents.sessionUpdateEvent(languageHint: "ja")
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        XCTAssertNil(parsed["replace"])
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        XCTAssertNil(sessionUpdate["replace"])
 
         // Verify nesting: session.audio.input.transcription.language_hint
-        let session = parsed["session"] as? [String: Any]
+        let session = sessionUpdate["session"] as? [String: Any]
         let audio = session?["audio"] as? [String: Any]
         let input = audio?["input"] as? [String: Any]
         let transcription = input?["transcription"] as? [String: Any]
@@ -273,11 +279,13 @@ final class SessionUpdateTests: XCTestCase {
         let json = BedrockEvents.sessionUpdateEvent(keyterms: ["Acme Mobile", "NovaSonic"])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        XCTAssertNil(parsed["replace"])
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        XCTAssertNil(sessionUpdate["replace"])
 
-        let session = parsed["session"] as? [String: Any]
+        let session = sessionUpdate["session"] as? [String: Any]
         let audio = session?["audio"] as? [String: Any]
         let input = audio?["input"] as? [String: Any]
         let transcription = input?["transcription"] as? [String: Any]
@@ -293,11 +301,13 @@ final class SessionUpdateTests: XCTestCase {
         )
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        XCTAssertEqual(parsed["replace"] as? [String: String], ["NovaSonic": "Nova Sonic"])
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        XCTAssertEqual(sessionUpdate["replace"] as? [String: String], ["NovaSonic": "Nova Sonic"])
 
-        let session = parsed["session"] as? [String: Any]
+        let session = sessionUpdate["session"] as? [String: Any]
         let audio = session?["audio"] as? [String: Any]
         let input = audio?["input"] as? [String: Any]
         let transcription = input?["transcription"] as? [String: Any]
@@ -309,20 +319,24 @@ final class SessionUpdateTests: XCTestCase {
         let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: nil)
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        XCTAssertNil(parsed["replace"])
-        XCTAssertNil(parsed["session"])
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        XCTAssertNil(sessionUpdate["replace"])
+        XCTAssertNil(sessionUpdate["session"])
     }
 
     func testSessionUpdateEventEmptyKeytermsOmitsKey() throws {
         let json = BedrockEvents.sessionUpdateEvent(keyterms: [])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
         // Empty keyterms should not produce a session subtree
-        XCTAssertNil(parsed["session"])
+        XCTAssertNil(sessionUpdate["session"])
     }
 
     func testSessionUpdateEventFromConfiguration() throws {
@@ -334,11 +348,13 @@ final class SessionUpdateTests: XCTestCase {
         let json = BedrockEvents.sessionUpdateEvent(configuration: cfg)
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
 
-        XCTAssertEqual(parsed["type"] as? String, "session.update")
-        XCTAssertEqual(parsed["replace"] as? [String: String], ["Hello": "Hey"])
+        XCTAssertEqual(sessionUpdate["type"] as? String, "session.update")
+        XCTAssertEqual(sessionUpdate["replace"] as? [String: String], ["Hello": "Hey"])
 
-        let session = parsed["session"] as? [String: Any]
+        let session = sessionUpdate["session"] as? [String: Any]
         let audio = session?["audio"] as? [String: Any]
         let input = audio?["input"] as? [String: Any]
         let transcription = input?["transcription"] as? [String: Any]
@@ -351,7 +367,9 @@ final class SessionUpdateTests: XCTestCase {
             let json = BedrockEvents.sessionUpdateEvent(languageHint: tag)
             let data = json.data(using: .utf8)!
             let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-            let session = parsed["session"] as? [String: Any]
+            let event = parsed["event"] as! [String: Any]
+            let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+            let session = sessionUpdate["session"] as? [String: Any]
             let audio = session?["audio"] as? [String: Any]
             let input = audio?["input"] as? [String: Any]
             let transcription = input?["transcription"] as? [String: Any]
