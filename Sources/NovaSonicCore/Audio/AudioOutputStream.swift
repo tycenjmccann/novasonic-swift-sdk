@@ -220,6 +220,12 @@ public class AudioOutputStream {
         }
     }
     
+    /// Plays raw PCM audio data received via binary transport.
+    /// Bypasses base64 decoding since binary frames are already raw PCM bytes.
+    public func playRawAudioData(_ data: Data) throws {
+        try playAudio(data)
+    }
+
     // Flushes audio stream to handle Barge-In scenarios
     public func flush() {
         NovaSonicLogger.standard("AudioOutputStream: flush() called - BARGE-IN DETECTED")

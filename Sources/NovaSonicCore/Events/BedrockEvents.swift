@@ -28,7 +28,7 @@ public struct BedrockEvents {
         return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
     }
 
-    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {
+    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000, outputMediaType: AudioMediaType = .lpcm) -> String {
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
 
         let toolsArray = toolSpecs.map { spec in
@@ -43,6 +43,19 @@ public struct BedrockEvents {
             ]
         }
 
+        var audioOutputConfig: [String: Any] = [
+            "mediaType": outputMediaType.wireValue,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "voiceId": voiceId,
+            "encoding": "base64",
+            "audioType": "SPEECH"
+        ]
+        // Include sampleRateHertz for lpcm (existing behavior) and pcm (configurable)
+        if outputMediaType == .lpcm || outputMediaType == .pcm {
+            audioOutputConfig["sampleRateHertz"] = outputSampleRate
+        }
+
         let event: [String: Any] = [
             "event": [
                 "promptStart": [
@@ -50,15 +63,7 @@ public struct BedrockEvents {
                     "textOutputConfiguration": [
                         "mediaType": "text/plain"
                     ],
-                    "audioOutputConfiguration": [
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": outputSampleRate,
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "voiceId": voiceId,
-                        "encoding": "base64",
-                        "audioType": "SPEECH"
-                    ],
+                    "audioOutputConfiguration": audioOutputConfig,
                     "toolUseOutputConfiguration": [
                         "mediaType": "application/json"
                     ],
@@ -194,28 +199,32 @@ public struct BedrockEvents {
 
     // MARK: - Audio Streaming Events
 
-    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000) -> String {
-        """
-        {
-            "event": {
-                "contentStart": {
-                    "promptName": "\(promptName)",
-                    "contentName": "\(audioContentName)",
+    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, inputMediaType: AudioMediaType = .lpcm) -> String {
+        var audioInputConfig: [String: Any] = [
+            "mediaType": inputMediaType.wireValue,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "audioType": "SPEECH",
+            "encoding": "base64"
+        ]
+        // Include sampleRateHertz for lpcm (existing behavior) and pcm (configurable)
+        if inputMediaType == .lpcm || inputMediaType == .pcm {
+            audioInputConfig["sampleRateHertz"] = inputSampleRate
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "contentStart": [
+                    "promptName": promptName,
+                    "contentName": audioContentName,
                     "type": "AUDIO",
                     "interactive": true,
                     "role": "USER",
-                    "audioInputConfiguration": {
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": \(inputSampleRate),
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "audioType": "SPEECH",
-                        "encoding": "base64"
-                    }
-                }
-            }
-        }
-        """
+                    "audioInputConfiguration": audioInputConfig
+                ]
+            ]
+        ]
+        return encodeJSON(event)
     }
 
     public static func audioInputEvent(audioData: Data, promptName: String, audioContentName: String) -> String {

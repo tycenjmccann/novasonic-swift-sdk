@@ -46,12 +46,24 @@ public struct NovaSonicConfiguration {
     public let initialTextPrompt: String?
     
     // MARK: - Audio Configuration
-    
+
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
     public let inputSampleRate: NovaSonicSampleRate
-    
+
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
+
+    /// Media type for input audio stream
+    public let inputMediaType: AudioMediaType
+
+    /// Media type for output audio stream
+    public let outputMediaType: AudioMediaType
+
+    /// Transport mode for audio data (JSON with base64 or raw binary frames)
+    public let audioTransport: AudioTransport
+
+    /// Connection mode (Bedrock SDK or direct WebSocket)
+    public let connectionMode: ConnectionMode
     
     #if IOS_AUDIO
     /// iOS audio session category
@@ -124,6 +136,10 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputMediaType = .lpcm
+        self.outputMediaType = .lpcm
+        self.audioTransport = .json
+        self.connectionMode = .bedrockSDK
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +147,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -175,6 +191,10 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputMediaType = .lpcm
+        self.outputMediaType = .lpcm
+        self.audioTransport = .json
+        self.connectionMode = .bedrockSDK
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -186,6 +206,84 @@ public struct NovaSonicConfiguration {
         self.logLevel = logLevel
     }
     #endif
+
+    // MARK: - Throwing Initializer (validates transport/media type combinations)
+
+    @_disfavoredOverload
+    public init(
+        region: String = "us-east-1",
+        model: NovaSonicModel = .novaSonic2,
+        voice: NovaSonicVoice = .tiffany,
+        temperature: Double = 0.7,
+        topP: Double = 0.9,
+        maxTokens: Int = 1024,
+        systemPrompt: String = "You are a helpful assistant.",
+        endpointingSensitivity: EndpointingSensitivity = .high,
+        enableParalinguisticDetection: Bool = false,
+        initialTextPrompt: String? = nil,
+        inputSampleRate: NovaSonicSampleRate = .rate16kHz,
+        outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        inputMediaType: AudioMediaType = .lpcm,
+        outputMediaType: AudioMediaType = .lpcm,
+        audioTransport: AudioTransport = .json,
+        connectionMode: ConnectionMode = .bedrockSDK,
+        historyManager: NovaSonicHistoryManager? = nil,
+        enableDynamoDBHistory: Bool = false,
+        dynamoDBTableName: String = "nova_sonic_chat_history",
+        dynamoDBUserId: String? = nil,
+        dynamoDBRegion: String? = nil,
+        awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
+        logLevel: NovaSonicLogLevel = .standard
+    ) throws {
+        // Validate sample rate applicability for input
+        if !inputMediaType.supportsSampleRate && inputSampleRate != .rate16kHz {
+            throw NovaSonicError.sampleRateNotApplicable(direction: .input, mediaType: inputMediaType)
+        }
+        // Validate sample rate applicability for output
+        if !outputMediaType.supportsSampleRate && outputSampleRate != .rate24kHz {
+            throw NovaSonicError.sampleRateNotApplicable(direction: .output, mediaType: outputMediaType)
+        }
+        // Binary transport requires WebSocket connection
+        if case .json = audioTransport {
+            // json is always valid
+        } else {
+            switch connectionMode {
+            case .bedrockSDK:
+                throw NovaSonicError.binaryTransportRequiresWebSocket
+            case .webSocket:
+                break
+            }
+        }
+
+        self.region = region
+        self.model = model
+        self.voice = voice
+        self.temperature = temperature
+        self.topP = topP
+        self.maxTokens = maxTokens
+        self.systemPrompt = systemPrompt
+        self.endpointingSensitivity = endpointingSensitivity
+        self.enableParalinguisticDetection = enableParalinguisticDetection
+        self.initialTextPrompt = initialTextPrompt
+        self.inputSampleRate = inputSampleRate
+        self.outputSampleRate = outputSampleRate
+        self.inputMediaType = inputMediaType
+        self.outputMediaType = outputMediaType
+        self.audioTransport = audioTransport
+        self.connectionMode = connectionMode
+        self.historyManager = historyManager
+        self.enableDynamoDBHistory = enableDynamoDBHistory
+        self.dynamoDBTableName = dynamoDBTableName
+        self.dynamoDBUserId = dynamoDBUserId
+        self.dynamoDBRegion = dynamoDBRegion ?? region
+        self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
+        self.logLevel = logLevel
+
+        #if IOS_AUDIO
+        self.audioSessionCategory = .playAndRecord
+        self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
+        #endif
+    }
 }
 
 // MARK: - Preset Configurations
@@ -195,13 +293,25 @@ public extension NovaSonicConfiguration {
     /// Default configuration for most use cases
     static let `default` = NovaSonicConfiguration()
     
-    /// Maximum quality configuration (24kHz input/output)
+    /// Maximum quality configuration (24kHz input/output, Bedrock SDK)
     static let maxQuality = NovaSonicConfiguration(
         inputSampleRate: .rate24kHz,
         outputSampleRate: .rate24kHz
     )
-    
-    /// Low bandwidth configuration (8kHz input/output)
+
+    /// Maximum quality configuration via WebSocket (48kHz PCM, binary transport)
+    static func maxQuality(endpoint: URL) throws -> NovaSonicConfiguration {
+        return try NovaSonicConfiguration(
+            inputSampleRate: .rate48kHz,
+            outputSampleRate: .rate48kHz,
+            inputMediaType: .pcm,
+            outputMediaType: .pcm,
+            audioTransport: .binary,
+            connectionMode: .webSocket(endpoint: endpoint)
+        )
+    }
+
+    /// Low bandwidth configuration (8kHz input/output, pcmu for compression)
     static let lowBandwidth = NovaSonicConfiguration(
         inputSampleRate: .rate8kHz,
         outputSampleRate: .rate8kHz
@@ -387,19 +497,32 @@ public enum NovaSonicVoice: String, CaseIterable {
 /// Higher rates give crisper output but use more bandwidth
 public enum NovaSonicSampleRate: Int, CaseIterable {
     case rate8kHz = 8000
-    case rate16kHz = 16000   // Demo default for input
-    case rate24kHz = 24000   // Demo default for output
-    
+    case rate16kHz = 16000    // Demo default for input
+    case rate22kHz = 22050
+    case rate24kHz = 24000    // Demo default for output
+    case rate32kHz = 32000
+    case rate44kHz = 44100
+    case rate48kHz = 48000
+
     public var displayName: String {
         switch self {
         case .rate8kHz: return "8 kHz (Low Quality, Low Bandwidth)"
         case .rate16kHz: return "16 kHz (Standard Quality)"
+        case .rate22kHz: return "22.05 kHz (FM Quality)"
         case .rate24kHz: return "24 kHz (High Quality, Crisper Output)"
+        case .rate32kHz: return "32 kHz (Broadcast Quality)"
+        case .rate44kHz: return "44.1 kHz (CD Quality)"
+        case .rate48kHz: return "48 kHz (Studio Quality)"
         }
     }
-    
+
     public var hertz: Int {
         return self.rawValue
+    }
+
+    /// Bytes per audio frame (16-bit mono PCM = 2 bytes per sample)
+    public var bytesPerFrame: Int {
+        return 2
     }
 }
 

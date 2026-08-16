@@ -10,9 +10,16 @@ public class AudioInputStream {
 
     private let desiredFormat: AVAudioFormat
 
-    public init(targetSampleRate: Double = 16000) throws {
+    /// Transport mode for audio data
+    public let audioTransport: AudioTransport
+
+    /// Handler for sending raw binary frames (used when transport is .binary)
+    public var binaryFrameHandler: ((Data) -> Void)?
+
+    public init(targetSampleRate: Double = 16000, audioTransport: AudioTransport = .json) throws {
         self.engine = SharedAudioEngine.shared.engine
         self.inputNode = engine.inputNode
+        self.audioTransport = audioTransport
 
         guard let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                       sampleRate: targetSampleRate,
@@ -42,7 +49,7 @@ public class AudioInputStream {
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0,
                              bufferSize: bufferSize,
-                             format: inputFormat) { [desiredFormat] buffer, _ in
+                             format: inputFormat) { [desiredFormat, weak self] buffer, _ in
             guard let srcChannels = buffer.floatChannelData else { return }
 
             // Copy on the real-time thread; convert on a worker thread.
@@ -80,6 +87,9 @@ public class AudioInputStream {
 
                 guard let data = Data(pcmBuffer: outBuf) else { return }
                 onAudioChunk(data)
+                if self.audioTransport == .binary {
+                    self.binaryFrameHandler?(data)
+                }
             }
         }
 

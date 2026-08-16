@@ -15,6 +15,13 @@ public enum NovaSonicError: Error, LocalizedError {
     case invalidAudioFormat
     case microphoneNotAvailable
     
+    // Transport & connection errors
+    case sampleRateNotApplicable(direction: AudioDirection, mediaType: AudioMediaType)
+    case binaryTransportRequiresWebSocket
+    case sessionUpdateRejected(field: String, reason: String)
+    case webSocketConnectionFailed(underlying: Error?)
+    case audioFrameSizeExceeded(expected: Int, actual: Int)
+
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -51,6 +58,19 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Invalid audio format or corrupted audio data"
         case .microphoneNotAvailable:
             return "Microphone is not available on this device"
+        case .sampleRateNotApplicable(let direction, let mediaType):
+            return "Sample rate is not configurable for \(direction.rawValue) with media type \(mediaType.wireValue)"
+        case .binaryTransportRequiresWebSocket:
+            return "Binary transport mode requires a WebSocket connection"
+        case .sessionUpdateRejected(let field, let reason):
+            return "Session update rejected for field '\(field)': \(reason)"
+        case .webSocketConnectionFailed(let underlying):
+            if let underlying = underlying {
+                return "WebSocket connection failed: \(underlying.localizedDescription)"
+            }
+            return "WebSocket connection failed"
+        case .audioFrameSizeExceeded(let expected, let actual):
+            return "Audio frame size exceeded: expected \(expected) bytes, got \(actual) bytes"
         case .converterCreationFailed:
             return "Failed to create audio converter"
         case .sessionConfigurationFailed:
@@ -92,6 +112,16 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .microphoneNotAvailable:
             return "Try using a device with microphone support"
+        case .sampleRateNotApplicable:
+            return "Use .pcm media type for configurable sample rates, or use the default rate for this media type"
+        case .binaryTransportRequiresWebSocket:
+            return "Use .webSocket connection mode with binary transport, or switch to .json transport"
+        case .sessionUpdateRejected:
+            return "Check the session update parameters and try again"
+        case .webSocketConnectionFailed:
+            return "Check the WebSocket endpoint URL and network connectivity"
+        case .audioFrameSizeExceeded:
+            return "Reduce the audio frame size or check the audio configuration"
         case .converterCreationFailed:
             return "Try restarting the audio session"
         case .sessionConfigurationFailed:
@@ -113,8 +143,14 @@ public enum NovaSonicError: Error, LocalizedError {
             return true
         case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
             return false
+        case .sampleRateNotApplicable, .binaryTransportRequiresWebSocket, .audioFrameSizeExceeded:
+            return false
+        case .sessionUpdateRejected:
+            return false
+        case .webSocketConnectionFailed:
+            return true
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
-            return true  // Audio errors are often retryable
+            return true
         case .toolExecutionFailed, .streamingError, .audioSessionError, .invalidResponse, .invalidAudioFormat:
             return true
         }
