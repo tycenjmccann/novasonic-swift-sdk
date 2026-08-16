@@ -52,7 +52,10 @@ public struct NovaSonicConfiguration {
     
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
-    
+
+    /// How audio frames are transported between client and service
+    public let audioTransportMode: AudioTransportMode
+
     #if IOS_AUDIO
     /// iOS audio session category
     public let audioSessionCategory: AVAudioSession.Category
@@ -104,6 +107,7 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioTransportMode: AudioTransportMode = .json,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +128,7 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioTransportMode = audioTransportMode
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +136,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -153,6 +158,7 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioTransportMode: AudioTransportMode = .json,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -175,6 +181,7 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioTransportMode = audioTransportMode
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -385,22 +392,36 @@ public enum NovaSonicVoice: String, CaseIterable {
 
 /// Audio sample rate options supported by Nova Sonic
 /// Higher rates give crisper output but use more bandwidth
-public enum NovaSonicSampleRate: Int, CaseIterable {
+public enum NovaSonicSampleRate: Int, CaseIterable, Codable, Sendable {
     case rate8kHz = 8000
-    case rate16kHz = 16000   // Demo default for input
-    case rate24kHz = 24000   // Demo default for output
-    
+    case rate16kHz = 16000
+    case rate22kHz = 22050
+    case rate24kHz = 24000
+    case rate32kHz = 32000
+    case rate44kHz = 44100
+    case rate48kHz = 48000
+
     public var displayName: String {
         switch self {
-        case .rate8kHz: return "8 kHz (Low Quality, Low Bandwidth)"
-        case .rate16kHz: return "16 kHz (Standard Quality)"
-        case .rate24kHz: return "24 kHz (High Quality, Crisper Output)"
+        case .rate8kHz:  return "8 kHz"
+        case .rate16kHz: return "16 kHz"
+        case .rate22kHz: return "22.05 kHz"
+        case .rate24kHz: return "24 kHz"
+        case .rate32kHz: return "32 kHz"
+        case .rate44kHz: return "44.1 kHz"
+        case .rate48kHz: return "48 kHz"
         }
     }
-    
-    public var hertz: Int {
-        return self.rawValue
-    }
+
+    public var hertz: Int { return self.rawValue }
+}
+
+/// Determines how audio frames are encoded on the wire between client and service.
+public enum AudioTransportMode: String, Codable, Sendable, CaseIterable {
+    /// Audio frames are base64-encoded inside JSON event payloads (default, current behavior).
+    case json = "json"
+    /// Audio frames are sent as raw PCM16 LE bytes using AWS event-stream binary framing.
+    case binary = "binary"
 }
 
 // MARK: - Convenience Extensions

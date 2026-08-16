@@ -49,6 +49,10 @@ public class NovaSonicStreamManager: ObservableObject {
     
     // MARK: - Delegate
     public weak var delegate: NovaSonicStreamDelegate?
+
+    /// Optional delegate for intercepting binary audio frames before playback.
+    /// When set, the delegate is responsible for audio playback.
+    public weak var binaryAudioDelegate: NovaSonicBinaryAudioDelegate?
     
     // MARK: - Private Properties
     private var isSpeculativeText = true
@@ -343,8 +347,61 @@ public class NovaSonicStreamManager: ObservableObject {
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
     
+    // MARK: - Binary Audio Transport
+
+    /// Sends raw PCM16 little-endian audio bytes using binary event-stream framing.
+    ///
+    /// - Parameter audioData: Raw PCM16 LE audio bytes. Length must be a multiple of 2
+    ///   (one sample = 2 bytes). Recommended chunk size: 320 bytes (10 ms at 16 kHz).
+    ///
+    /// - Throws: `NovaSonicError.binaryTransportNotEnabled` if the session was configured
+    ///   with `.json` transport mode.
+    /// - Throws: `NovaSonicError.invalidAudioFormat` if `audioData` length is not
+    ///   a multiple of 2.
+    /// - Throws: `NovaSonicError.streamingError` if the underlying connection is closed.
+    public func sendBinaryAudio(_ audioData: Data) async throws {
+        guard let config = configuration, config.audioTransportMode == .binary else {
+            throw NovaSonicError.binaryTransportNotEnabled
+        }
+
+        guard audioData.count % 2 == 0 else {
+            throw NovaSonicError.invalidAudioFormat
+        }
+
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Stream is not active")
+        }
+
+        let frame = BinaryFrameEncoder.encodeAudioFrame(
+            audioData: audioData,
+            promptName: promptName,
+            audioContentName: audioContentName
+        )
+
+        try await sendBinaryFrame(frame)
+    }
+
+    /// Internal method to send a binary frame through the active stream connection.
+    private func sendBinaryFrame(_ frameData: Data) async throws {
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Cannot send binary frame: event stream not available")
+        }
+
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot send binary frame: stream is not active")
+        }
+
+        NovaSonicLogger.verbose("Sending binary audio frame: \(frameData.count) bytes")
+
+        continuation.yield(
+            .chunk(
+                .init(bytes: frameData)
+            )
+        )
+    }
+
     // MARK: - History Management
-    
+
     /// Set the history manager for conversation persistence
     /// - Parameter manager: The history manager to use, or nil to disable history
     public func setHistoryManager(_ manager: NovaSonicHistoryManager?) {

@@ -51,7 +51,7 @@ public struct BedrockEvents {
                         "mediaType": "text/plain"
                     ],
                     "audioOutputConfiguration": [
-                        "mediaType": "audio/lpcm",
+                        "mediaType": "audio/pcm",
                         "sampleRateHertz": outputSampleRate,
                         "sampleSizeBits": 16,
                         "channelCount": 1,
@@ -205,7 +205,7 @@ public struct BedrockEvents {
                     "interactive": true,
                     "role": "USER",
                     "audioInputConfiguration": {
-                        "mediaType": "audio/lpcm",
+                        "mediaType": "audio/pcm",
                         "sampleRateHertz": \(inputSampleRate),
                         "sampleSizeBits": 16,
                         "channelCount": 1,

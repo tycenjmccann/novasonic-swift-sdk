@@ -15,6 +15,9 @@ public enum NovaSonicError: Error, LocalizedError {
     case invalidAudioFormat
     case microphoneNotAvailable
     
+    case binaryTransportNotEnabled
+    case unsupportedSampleRate(NovaSonicSampleRate)
+
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -63,9 +66,13 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Failed to create audio buffer"
         case .invalidFormat:
             return "Invalid audio format"
+        case .binaryTransportNotEnabled:
+            return "Binary audio transport is not enabled for this session."
+        case .unsupportedSampleRate(let rate):
+            return "Sample rate \(rate.displayName) is not supported by the current model."
         }
     }
-    
+
     public var recoverySuggestion: String? {
         switch self {
         case .audioPermissionDenied:
@@ -104,9 +111,13 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .invalidFormat:
             return "Try restarting the audio session"
+        case .binaryTransportNotEnabled:
+            return "Initialize NovaSonicConfiguration with audioTransportMode: .binary"
+        case .unsupportedSampleRate:
+            return "Use a supported sample rate (8, 16, 22.05, 24, 32, 44.1, or 48 kHz)."
         }
     }
-    
+
     public var isRetryable: Bool {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
@@ -117,6 +128,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return true  // Audio errors are often retryable
         case .toolExecutionFailed, .streamingError, .audioSessionError, .invalidResponse, .invalidAudioFormat:
             return true
+        case .binaryTransportNotEnabled, .unsupportedSampleRate:
+            return false
         }
     }
 }
