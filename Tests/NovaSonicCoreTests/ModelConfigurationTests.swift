@@ -413,4 +413,61 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertNil(response.replace)
         XCTAssertNil(response.session)
     }
+
+    // MARK: - languageHint Validation (FR-2.4 / FR-2.5)
+
+    func testBareEsRejectedWithDescriptiveError() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            let desc = (error as? NovaSonicError)?.errorDescription ?? ""
+            XCTAssertTrue(desc.contains("es"), "Error should mention 'es'")
+            XCTAssertTrue(desc.contains("regional variant"), "Error should mention regional variant")
+        }
+    }
+
+    func testBarePtRejectedWithDescriptiveError() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            let desc = (error as? NovaSonicError)?.errorDescription ?? ""
+            XCTAssertTrue(desc.contains("pt"), "Error should mention 'pt'")
+            XCTAssertTrue(desc.contains("regional variant"), "Error should mention regional variant")
+        }
+    }
+
+    func testEsMXAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-MX")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testEsESAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-ES")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testPtBRAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt-BR")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testPtPTAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt-PT")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testUnknownBCP47CodeAccepted() {
+        // Unknown codes must not be client-side rejected
+        let cfg = NovaSonicConfiguration(languageHint: "xx-YY")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testNilLanguageHintAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testJapaneseLanguageHintAccepted() {
+        // "ja" is a bare code but it's not "es" or "pt" — should pass
+        let cfg = NovaSonicConfiguration(languageHint: "ja")
+        XCTAssertNoThrow(try cfg.validate())
+    }
 }

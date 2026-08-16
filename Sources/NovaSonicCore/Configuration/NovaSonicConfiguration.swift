@@ -505,5 +505,15 @@ extension NovaSonicConfiguration {
                 }
             }
         }
+
+        // Validate languageHint - reject bare "es" and "pt" (require regional variant)
+        if let hint = languageHint {
+            if hint == "es" {
+                throw NovaSonicError.streamingError("Language hint 'es' requires a regional variant (e.g., 'es-MX', 'es-ES')")
+            }
+            if hint == "pt" {
+                throw NovaSonicError.streamingError("Language hint 'pt' requires a regional variant (e.g., 'pt-BR', 'pt-PT')")
+            }
+        }
     }
 }
