@@ -45,6 +45,21 @@ public struct BedrockEvents {
 
         let encoding: String = outputTransport == .json ? "base64" : "raw"
 
+        // Backward compat: omit "transport" for default (json) mode so servers
+        // with strict schema validation are not broken by an unexpected field.
+        var audioOutputConfiguration: [String: Any] = [
+            "mediaType": "audio/lpcm",
+            "sampleRateHertz": outputSampleRate,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "voiceId": voiceId,
+            "encoding": encoding,
+            "audioType": "SPEECH"
+        ]
+        if outputTransport == .binary {
+            audioOutputConfiguration["transport"] = outputTransport.rawValue
+        }
+
         let event: [String: Any] = [
             "event": [
                 "promptStart": [
@@ -52,16 +67,7 @@ public struct BedrockEvents {
                     "textOutputConfiguration": [
                         "mediaType": "text/plain"
                     ],
-                    "audioOutputConfiguration": [
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": outputSampleRate,
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "voiceId": voiceId,
-                        "encoding": encoding,
-                        "audioType": "SPEECH",
-                        "transport": outputTransport.rawValue
-                    ],
+                    "audioOutputConfiguration": audioOutputConfiguration,
                     "toolUseOutputConfiguration": [
                         "mediaType": "application/json"
                     ],
@@ -200,6 +206,20 @@ public struct BedrockEvents {
     public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, inputTransport: AudioTransportMode = .json) -> String {
         let encoding: String = inputTransport == .json ? "base64" : "raw"
 
+        // Backward compat: omit "transport" for default (json) mode so servers
+        // with strict schema validation are not broken by an unexpected field.
+        var audioInputConfiguration: [String: Any] = [
+            "mediaType": "audio/lpcm",
+            "sampleRateHertz": inputSampleRate,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "audioType": "SPEECH",
+            "encoding": encoding
+        ]
+        if inputTransport == .binary {
+            audioInputConfiguration["transport"] = inputTransport.rawValue
+        }
+
         let event: [String: Any] = [
             "event": [
                 "contentStart": [
@@ -208,15 +228,7 @@ public struct BedrockEvents {
                     "type": "AUDIO",
                     "interactive": true,
                     "role": "USER",
-                    "audioInputConfiguration": [
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": inputSampleRate,
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "audioType": "SPEECH",
-                        "encoding": encoding,
-                        "transport": inputTransport.rawValue
-                    ]
+                    "audioInputConfiguration": audioInputConfiguration
                 ]
             ]
         ]

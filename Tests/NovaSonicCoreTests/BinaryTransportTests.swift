@@ -58,7 +58,7 @@ final class BinaryTransportTests: XCTestCase {
         let audioConfig = extractAudioOutputConfig(from: parsed)
 
         XCTAssertEqual(audioConfig?["encoding"] as? String, "base64")
-        XCTAssertEqual(audioConfig?["transport"] as? String, "json")
+        XCTAssertNil(audioConfig?["transport"])
     }
 
     func testPromptStartEventBinaryTransportHasRawEncoding() {
@@ -88,7 +88,7 @@ final class BinaryTransportTests: XCTestCase {
         let audioInputConfig = extractAudioInputConfig(from: parsed)
 
         XCTAssertEqual(audioInputConfig?["encoding"] as? String, "base64")
-        XCTAssertEqual(audioInputConfig?["transport"] as? String, "json")
+        XCTAssertNil(audioInputConfig?["transport"])
     }
 
     func testAudioContentStartEventBinaryTransport() {
