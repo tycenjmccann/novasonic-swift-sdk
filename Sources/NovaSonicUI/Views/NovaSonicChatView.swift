@@ -33,6 +33,9 @@ public struct NovaSonicChatView: View {
     public let endpointingSensitivity: EndpointingSensitivity  // Nova 2.0
     public let enableParalinguisticDetection: Bool  // Nova 2.0
     public let initialTextPrompt: String?  // Nova 2.0
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
     public let enableDynamoDBHistory: Bool
     public let dynamoDBTableName: String
     public let dynamoDBUserId: String?
@@ -76,6 +79,9 @@ public struct NovaSonicChatView: View {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
         dynamoDBUserId: String? = nil,
@@ -100,6 +106,9 @@ public struct NovaSonicChatView: View {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
         self.dynamoDBUserId = dynamoDBUserId
@@ -618,6 +627,9 @@ public struct NovaSonicChatView: View {
             endpointingSensitivity: endpointingSensitivity,
             enableParalinguisticDetection: enableParalinguisticDetection,
             initialTextPrompt: initialTextPrompt,
+            replace: replace,
+            languageHint: languageHint,
+            keyterms: keyterms,
             inputSampleRate: inputSampleRate,
             outputSampleRate: outputSampleRate,
             enableDynamoDBHistory: enableDynamoDBHistory,
@@ -627,7 +639,7 @@ public struct NovaSonicChatView: View {
             awsCredentialIdentityResolver: awsCredentialIdentityResolver,
             logLevel: logLevel
         )
-        
+
         // Apply the updated configuration
         streamManager.configure(with: newConfig)
         NovaSonicLogger.standard("Voice changed to: \(selectedVoice.displayName)")
@@ -656,6 +668,9 @@ public struct NovaSonicChatView: View {
                 endpointingSensitivity: endpointingSensitivity,
                 enableParalinguisticDetection: enableParalinguisticDetection,
                 initialTextPrompt: initialTextPrompt,
+                replace: replace,
+                languageHint: languageHint,
+                keyterms: keyterms,
                 inputSampleRate: inputSampleRate,
                 outputSampleRate: outputSampleRate,
                 enableDynamoDBHistory: enableDynamoDBHistory,
@@ -665,7 +680,7 @@ public struct NovaSonicChatView: View {
                 awsCredentialIdentityResolver: awsCredentialIdentityResolver,
                 logLevel: logLevel
             )
-            
+
             streamManager.configure(with: configuration)
         } else {
             NovaSonicLogger.verbose("NovaSonicChatView: Stream manager already configured, skipping")

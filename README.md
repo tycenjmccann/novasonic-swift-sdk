@@ -243,6 +243,43 @@ NovaSonicChatView(
 )
 ```
 
+## Pronunciation Replacements, Language Hint & Keyterms
+
+Improve transcription accuracy with pronunciation replacements, language hints, and domain-specific keyterms. These can be set at configuration time or updated mid-session.
+
+### Configuration at Startup
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["AWS": "A W S", "S3": "S three", "iOS": "eye oh ess"],
+    languageHint: "en",
+    keyterms: ["NovaSonic", "Bedrock", "Lambda", "DynamoDB"]
+)
+streamManager.configure(with: config)
+```
+
+### Mid-Session Updates
+
+```swift
+// Update all at once
+try await streamManager.updateSession(
+    replace: ["HIPAA": "hip ah"],
+    languageHint: "en",
+    keyterms: ["electrocardiogram", "angioplasty"]
+)
+
+// Or update individually
+try await streamManager.updateSessionReplacements(["GCP": "G C P"])
+try await streamManager.updateLanguageHint("ja")
+try await streamManager.updateKeyterms(["Kubernetes", "Terraform"])
+```
+
+### Supported Language Codes
+
+`en`, `ja`, `zh`, `fr`, `de`, `hi`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `id`, `it`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
+
 ## AWS Setup
 
 ### Prerequisites

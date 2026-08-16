@@ -216,3 +216,50 @@ enum NovaSonicError: Error {
 | `.rate8kHz` | 8000 | Basic | Poor network |
 | `.rate16kHz` | 16000 | Standard | Default input |
 | `.rate24kHz` | 24000 | High | Best output quality |
+
+## Pronunciation Replacements, Language Hint & Keyterms
+
+### Configuration Properties
+
+```swift
+let config = NovaSonicConfiguration(
+    // ... other params ...
+    replace: ["AWS": "A W S", "S3": "S three"],   // Pronunciation replacements
+    languageHint: "en",                             // BCP-47 language code
+    keyterms: ["NovaSonic", "Bedrock", "Lambda"]    // Domain-specific terms
+)
+```
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `replace` | `[String: String]?` | `nil` | Map of text to pronunciation replacement |
+| `languageHint` | `String?` | `nil` | BCP-47 language code for transcription |
+| `keyterms` | `[String]?` | `nil` | Domain-specific terms for transcription accuracy |
+
+### Supported Language Codes
+
+`en`, `ja`, `zh`, `fr`, `de`, `hi`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `id`, `it`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
+
+### Validation Rules
+
+- `languageHint` must be one of the supported codes listed above
+- `keyterms` may contain at most 100 items
+- Each keyterm may be at most 50 characters
+
+### Mid-Session Update Methods
+
+```swift
+// Update all at once
+try await streamManager.updateSession(
+    replace: ["AWS": "A W S"],
+    languageHint: "en",
+    keyterms: ["NovaSonic"]
+)
+
+// Convenience methods for individual updates
+try await streamManager.updateSessionReplacements(["S3": "S three"])
+try await streamManager.updateLanguageHint("ja")
+try await streamManager.updateKeyterms(["Lambda", "DynamoDB"])
+```
+
+Throws `NovaSonicError.streamingError` if the session is not active. Throws `NovaSonicError.invalidConfiguration` if validation fails.

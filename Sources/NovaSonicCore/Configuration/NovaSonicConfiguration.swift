@@ -44,7 +44,16 @@ public struct NovaSonicConfiguration {
     /// If provided, sends text instead of audio for speakFirst
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
-    
+
+    /// Pronunciation replacements (e.g. ["AWS": "A W S", "S3": "S three"])
+    public let replace: [String: String]?
+
+    /// BCP-47 language hint for transcription (e.g. "en", "ja", "fr")
+    public let languageHint: String?
+
+    /// Domain-specific terms to improve transcription accuracy (max 100 items, 50 chars each)
+    public let keyterms: [String]?
+
     // MARK: - Audio Configuration
     
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -102,6 +111,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         historyManager: NovaSonicHistoryManager? = nil,
@@ -122,6 +134,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.historyManager = historyManager
@@ -131,7 +146,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -151,6 +166,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
@@ -173,6 +191,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.audioSessionCategory = audioSessionCategory
@@ -463,6 +484,24 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate languageHint against supported codes
+        if let hint = languageHint {
+            let supportedLanguages = ["en", "ja", "zh", "fr", "de", "hi", "ar-EG", "ar-SA", "ar-AE", "bn", "id", "it", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
+            guard supportedLanguages.contains(hint) else {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // Validate keyterms constraints
+        if let terms = keyterms {
+            guard terms.count <= 100 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            guard terms.allSatisfy({ $0.count <= 50 }) else {
+                throw NovaSonicError.invalidConfiguration
+            }
         }
     }
 }

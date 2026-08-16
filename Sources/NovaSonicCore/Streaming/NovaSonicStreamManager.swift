@@ -342,7 +342,59 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Update session parameters mid-stream (pronunciation replacements, language hint, keyterms)
+    public func updateSession(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+
+        // Validate languageHint
+        if let hint = languageHint {
+            let supportedLanguages = ["en", "ja", "zh", "fr", "de", "hi", "ar-EG", "ar-SA", "ar-AE", "bn", "id", "it", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
+            guard supportedLanguages.contains(hint) else {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // Validate keyterms
+        if let terms = keyterms {
+            guard terms.count <= 100 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            guard terms.allSatisfy({ $0.count <= 50 }) else {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+
+        let eventJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        continuation.yield(
+            .chunk(
+                .init(bytes: Data(eventJson.utf8))
+            )
+        )
+        NovaSonicLogger.standard("Sent session update event")
+    }
+
+    /// Convenience: update only pronunciation replacements
+    public func updateSessionReplacements(_ replace: [String: String]) async throws {
+        try await updateSession(replace: replace)
+    }
+
+    /// Convenience: update only the language hint
+    public func updateLanguageHint(_ languageHint: String) async throws {
+        try await updateSession(languageHint: languageHint)
+    }
+
+    /// Convenience: update only keyterms
+    public func updateKeyterms(_ keyterms: [String]) async throws {
+        try await updateSession(keyterms: keyterms)
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
@@ -827,7 +879,7 @@ public class NovaSonicStreamManager: ObservableObject {
         if let audioOutput = event["audioOutput"] as? [String: Any],
            let content = audioOutput["content"] as? String,
            let audioData = Data(base64Encoded: content) {
-            
+
             if !isStreaming {
                 return
             }
@@ -844,6 +896,10 @@ public class NovaSonicStreamManager: ObservableObject {
                 try await audioManager.playAudio(audioData)
             }
             #endif
+        }
+
+        if event["sessionUpdated"] != nil {
+            NovaSonicLogger.verbose("Session update confirmed by server")
         }
     }
     
