@@ -12,6 +12,7 @@ public enum NovaResponseEvent {
     case contentEnd(ContentEndResponse)
     case completionEnd(CompletionEndEvent)
     case error(ErrorResponse)
+    case sessionUpdated(SessionUpdatedResponse)
 }
 
 // MARK: - Event Response Models
@@ -103,6 +104,11 @@ public struct ErrorResponse: Codable {
     public let type: String?
 }
 
+public struct SessionUpdatedResponse: Codable {
+    public let sessionId: String
+    public let type: String?
+}
+
 // MARK: - Supporting Enums
 
 public enum GenerationStage: String, Codable {
@@ -146,8 +152,10 @@ public struct EventParser {
             return parseCompletionEnd(completionEnd)
         } else if let error = event["error"] as? [String: Any] {
             return parseError(error)
+        } else if let sessionUpdated = event["sessionUpdated"] as? [String: Any] {
+            return parseSessionUpdated(sessionUpdated)
         }
-        
+
         return nil
     }
     
@@ -293,12 +301,24 @@ public struct EventParser {
         guard let message = data["message"] as? String else {
             return nil
         }
-        
+
         let event = ErrorResponse(
             message: message,
             code: data["code"] as? String,
             type: data["type"] as? String
         )
         return .error(event)
+    }
+
+    private static func parseSessionUpdated(_ data: [String: Any]) -> NovaResponseEvent? {
+        guard let sessionId = data["sessionId"] as? String else {
+            return nil
+        }
+
+        let event = SessionUpdatedResponse(
+            sessionId: sessionId,
+            type: data["type"] as? String
+        )
+        return .sessionUpdated(event)
     }
 }
