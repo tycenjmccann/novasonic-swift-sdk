@@ -528,7 +528,19 @@ public class NovaSonicStreamManager: ObservableObject {
                     yieldEvent(evtJson, label: label)
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
-                
+
+                // Auto-send configured session-update values if any are present
+                if configuration?.replace != nil || configuration?.languageHint != nil || configuration?.keyterms != nil {
+                    let updateEvent = BedrockEvents.sessionUpdateEvent(
+                        replace: configuration?.replace,
+                        languageHint: configuration?.languageHint,
+                        keyterms: configuration?.keyterms
+                    )
+                    yieldEvent(updateEvent, label: "sessionUpdate")
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    NovaSonicLogger.standard("📤 Auto-sent session.update with configured values")
+                }
+
                 // Send the audio initialization event.
                 let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz)
                 yieldEvent(audioInitEvent, label: "audioContentStart")

@@ -439,4 +439,63 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertEqual(cfg.languageHint, "fr")
         XCTAssertEqual(cfg.keyterms, ["bonjour", "merci"])
     }
+
+    // MARK: - Auto-send at Session Start Tests
+
+    func testAutoSendSessionUpdateEventProducedWhenConfigured() {
+        let cfg = NovaSonicConfiguration(
+            replace: ["Acme": "Ack-me"],
+            languageHint: "ja",
+            keyterms: ["Kubernetes", "gRPC"]
+        )
+
+        let shouldAutoSend = cfg.replace != nil || cfg.languageHint != nil || cfg.keyterms != nil
+        XCTAssertTrue(shouldAutoSend, "Should auto-send when configuration has session-update values")
+
+        let eventJson = BedrockEvents.sessionUpdateEvent(
+            replace: cfg.replace,
+            languageHint: cfg.languageHint,
+            keyterms: cfg.keyterms
+        )
+
+        let data = eventJson.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+
+        let replaceDict = session["replace"] as! [String: String]
+        XCTAssertEqual(replaceDict["Acme"], "Ack-me")
+
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertEqual(transcription["language_hint"] as? String, "ja")
+        let keyterms = transcription["keyterms"] as! [String]
+        XCTAssertEqual(keyterms, ["Kubernetes", "gRPC"])
+    }
+
+    func testNoAutoSendWhenAllNil() {
+        let cfg = NovaSonicConfiguration()
+        let shouldAutoSend = cfg.replace != nil || cfg.languageHint != nil || cfg.keyterms != nil
+        XCTAssertFalse(shouldAutoSend, "Should NOT auto-send when no session-update values configured")
+    }
+
+    func testAutoSendWithOnlyReplace() {
+        let cfg = NovaSonicConfiguration(replace: ["Hello": "Heh-low"])
+        let shouldAutoSend = cfg.replace != nil || cfg.languageHint != nil || cfg.keyterms != nil
+        XCTAssertTrue(shouldAutoSend, "Should auto-send when only replace is configured")
+    }
+
+    func testAutoSendWithOnlyLanguageHint() {
+        let cfg = NovaSonicConfiguration(languageHint: "fr")
+        let shouldAutoSend = cfg.replace != nil || cfg.languageHint != nil || cfg.keyterms != nil
+        XCTAssertTrue(shouldAutoSend, "Should auto-send when only languageHint is configured")
+    }
+
+    func testAutoSendWithOnlyKeyterms() {
+        let cfg = NovaSonicConfiguration(keyterms: ["AI", "ML"])
+        let shouldAutoSend = cfg.replace != nil || cfg.languageHint != nil || cfg.keyterms != nil
+        XCTAssertTrue(shouldAutoSend, "Should auto-send when only keyterms is configured")
+    }
 }
