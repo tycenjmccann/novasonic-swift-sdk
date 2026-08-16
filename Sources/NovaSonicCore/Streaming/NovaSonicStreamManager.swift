@@ -480,7 +480,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 var textInitEvents: [(String, String)] = [
                     // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
                     (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
-                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
+                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz, outputTransport: configuration!.outputTransport), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
                     (BedrockEvents.contentEndEvent(promptName: promptName, contentName: contentName), "contentEnd")
@@ -530,7 +530,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 }
                 
                 // Send the audio initialization event.
-                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz)
+                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz, inputTransport: configuration!.inputTransport)
                 yieldEvent(audioInitEvent, label: "audioContentStart")
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 
@@ -562,31 +562,36 @@ public class NovaSonicStreamManager: ObservableObject {
                 try? await setupAudioStreams()
                 
                 #if IOS_AUDIO
+                let inputTransport = self.configuration?.inputTransport ?? .json
                 do {
                     try await audioManager.startRecording { [weak self] chunkData in
-                        // Log audio chunk processing (but not too frequently)
                         guard let strongSelf = self else { return }
                         strongSelf.chunkCounter += 1
-                        if strongSelf.chunkCounter % 25 == 0 { // Log every 25th chunk
-                    // Remove very verbose audio chunk logging
-                        }
-                        
-                        // Build the JSON payload
-                        let promptName = strongSelf.promptName
-                        let audioContentName = strongSelf.audioContentName
-                        
-                        let json = BedrockEvents.audioInputEvent(
-                            audioData: chunkData,
-                            promptName: promptName,
-                            audioContentName: audioContentName
-                        )
-                        
-                        // Send the audio chunk to the stream
-                        continuation.yield(
-                            .chunk(
-                                .init(bytes: Data(json.utf8))
+
+                        if inputTransport == .binary {
+                            // Binary transport: send raw audio bytes directly
+                            continuation.yield(
+                                .chunk(
+                                    .init(bytes: chunkData)
+                                )
                             )
-                        )
+                        } else {
+                            // JSON transport: wrap audio in base64 JSON event
+                            let promptName = strongSelf.promptName
+                            let audioContentName = strongSelf.audioContentName
+
+                            let json = BedrockEvents.audioInputEvent(
+                                audioData: chunkData,
+                                promptName: promptName,
+                                audioContentName: audioContentName
+                            )
+
+                            continuation.yield(
+                                .chunk(
+                                    .init(bytes: Data(json.utf8))
+                                )
+                            )
+                        }
                     }
                     NovaSonicLogger.verbose("🎙️ Audio recording started successfully!")
                 } catch {
@@ -686,16 +691,38 @@ public class NovaSonicStreamManager: ObservableObject {
                     // Skip empty responses silently
                     continue
                 }
-                
+
+                // Binary output transport: if configured, attempt JSON parse first.
+                // If the data is not valid JSON, treat it as raw PCM audio.
+                if configuration?.outputTransport == .binary {
+                    let jsonString = String(decoding: bytes, as: UTF8.self)
+                    if let jsonData = jsonString.data(using: .utf8),
+                       let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                       let event = topLevel["event"] as? [String: Any] {
+                        await handleEvent(event)
+                    } else {
+                        // Raw binary PCM audio data
+                        if sessionMetrics?.turns.last?.firstAudioChunkAt == nil {
+                            withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
+                        }
+                        #if IOS_AUDIO
+                        Task {
+                            try await audioManager.playAudio(bytes)
+                        }
+                        #endif
+                    }
+                    continue
+                }
+
                 // Log first few responses to see what we're getting
                 if responseCount <= 5 {
                     let _ = String(decoding: bytes, as: UTF8.self)
                     // Process response silently - JSON dumps are too noisy
                 }
-                
+
                 // Convert bytes to string for parsing
                 let jsonString = String(decoding: bytes, as: UTF8.self)
-                
+
                 // Parse the JSON structure
                 guard
                     let jsonData = jsonString.data(using: .utf8),
@@ -705,7 +732,7 @@ public class NovaSonicStreamManager: ObservableObject {
                     NovaSonicLogger.error("❌ Failed to parse Nova Sonic response")
                     continue
                 }
-                
+
                 await handleEvent(event)
             }
         } catch {
