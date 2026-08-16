@@ -10,6 +10,12 @@ public class AudioInputStream {
 
     private let desiredFormat: AVAudioFormat
 
+    // Codec support
+    private var codec: AudioCodec = .pcm
+    private var g711Encoder: AVAudioConverter?
+    private var g711OutputFormat: AVAudioFormat?
+    private var currentTransport: AudioTransport = .json
+
     public init(targetSampleRate: Double = 16000) throws {
         self.engine = SharedAudioEngine.shared.engine
         self.inputNode = engine.inputNode
@@ -21,6 +27,31 @@ public class AudioInputStream {
             throw NovaSonicError.invalidAudioFormat
         }
         self.desiredFormat = fmt
+    }
+
+    /// Codec-aware initializer for configurable audio format.
+    public convenience init(codec: AudioCodec, sampleRate: NovaSonicSampleRate, transport: AudioTransport = .json) throws {
+        let targetRate: Double = codec.isFixedRate ? 8000.0 : Double(sampleRate.rawValue)
+        try self.init(targetSampleRate: targetRate)
+        self.codec = codec
+        self.currentTransport = transport
+        if codec == .pcmu || codec == .pcma {
+            self.g711Encoder = AudioFormatFactory.makeEncoder(codec: codec)
+            self.g711OutputFormat = AudioFormatFactory.g711Format(codec: codec)
+            if self.g711Encoder == nil {
+                throw NovaSonicConfigurationError.unsupportedCodec(codec)
+            }
+        }
+    }
+
+    /// Atomically switch transport mode. Takes effect on the next emitted chunk.
+    public func switchTransport(to newTransport: AudioTransport) {
+        currentTransport = newTransport
+    }
+
+    /// Current transport mode.
+    public var transport: AudioTransport {
+        return currentTransport
     }
 
     /// Starts recording. Calls back onAudioChunk on a background queue.

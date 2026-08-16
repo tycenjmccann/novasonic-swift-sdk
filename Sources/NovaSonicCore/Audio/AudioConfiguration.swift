@@ -76,8 +76,12 @@ public struct AudioFormat {
 
 /// Audio encoding types
 public enum AudioEncoding {
-    case pcm
-    case compressed
+    case pcm        // 16-bit signed LE
+    case muLaw      // G.711 µ-law (8-bit)
+    case aLaw       // G.711 A-law (8-bit)
+
+    @available(*, deprecated, renamed: "muLaw")
+    static var compressed: AudioEncoding { .muLaw }
 }
 
 #endif

@@ -216,3 +216,101 @@ enum NovaSonicError: Error {
 | `.rate8kHz` | 8000 | Basic | Poor network |
 | `.rate16kHz` | 16000 | Standard | Default input |
 | `.rate24kHz` | 24000 | High | Best output quality |
+
+---
+
+## Audio Configuration Types
+
+### `AudioCodec`
+
+Codec selection for audio encoding/decoding.
+
+```swift
+public enum AudioCodec: String, Sendable, CaseIterable {
+    case pcm    // Linear PCM, 16-bit signed integer
+    case pcmu   // G.711 µ-law
+    case pcma   // G.711 A-law
+}
+```
+
+**Properties:**
+- `mediaType: String` — MIME type for Bedrock events (`"audio/lpcm"`, `"audio/pcmu"`, `"audio/pcma"`)
+- `displayName: String` — Human-readable name
+- `supportedSampleRates: [NovaSonicSampleRate]` — Valid rates for this codec
+- `isFixedRate: Bool` — Whether codec requires a specific sample rate
+- `bytesPerEncodedSample: Int` — Bytes per sample (2 for PCM, 1 for G.711)
+- `sampleSizeBits: Int` — Bits per sample for Bedrock payload (16 for PCM, 8 for G.711)
+
+### `AudioTransport`
+
+Transport mode for audio frame serialization.
+
+```swift
+public enum AudioTransport: String, Sendable, CaseIterable {
+    case json    // Base64-encoded in JSON (default)
+    case binary  // Raw binary frames
+}
+```
+
+**Properties:**
+- `displayName: String` — Human-readable name
+
+### `NovaSonicSampleRate` (Extended)
+
+```swift
+public enum NovaSonicSampleRate: Int, CaseIterable, Sendable, Hashable {
+    case rate8kHz   = 8000
+    case rate16kHz  = 16000
+    case rate22kHz  = 22050
+    case rate24kHz  = 24000   // Default for input and output
+    case rate32kHz  = 32000
+    case rate44kHz  = 44100
+    case rate48kHz  = 48000
+}
+```
+
+### `NovaSonicConfigurationError`
+
+Errors thrown when audio configuration is invalid.
+
+```swift
+public enum NovaSonicConfigurationError: Error, Sendable, LocalizedError {
+    case invalidSampleRateForCodec(codec:requested:allowed:)
+    case binaryTransportRequiresPCM(codec:)
+    case unsupportedCodec(_:)
+    case binaryTransportUnavailable
+}
+```
+
+### Updated `NovaSonicConfiguration` Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `inputSampleRate` | `NovaSonicSampleRate` | `.rate24kHz` | Input audio sample rate |
+| `outputSampleRate` | `NovaSonicSampleRate` | `.rate24kHz` | Output audio sample rate |
+| `inputCodec` | `AudioCodec` | `.pcm` | Input audio codec |
+| `outputCodec` | `AudioCodec` | `.pcm` | Output audio codec |
+| `inputTransport` | `AudioTransport` | `.json` | Input transport mode |
+| `outputTransport` | `AudioTransport` | `.json` | Output transport mode |
+
+### Updated `BedrockEvents` Methods
+
+New codec-aware overloads (existing methods preserved for backward compatibility):
+
+```swift
+// Codec-aware prompt start
+static func promptStartEvent(
+    promptName: String,
+    voiceId: String,
+    outputCodec: AudioCodec,
+    outputSampleRate: Int
+) -> String
+
+// Codec-aware audio content start
+static func audioContentStartEvent(
+    promptName: String,
+    audioContentName: String,
+    inputCodec: AudioCodec,
+    inputSampleRate: Int
+) -> String
+```

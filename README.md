@@ -443,6 +443,66 @@ NovaSonicFloatingButton(
 - Thread-safe operations and resource management
 - Configuration validation and automatic reconnection
 
+## Audio Configuration
+
+The SDK supports configurable audio codecs, sample rates, and transport modes for both input and output.
+
+### Supported Codecs
+
+| Codec | Description | Sample Rates | Bits/Sample |
+|-------|-------------|--------------|-------------|
+| `.pcm` | Linear PCM (default) | All 7 rates | 16 |
+| `.pcmu` | G.711 µ-law | 8 kHz only | 8 |
+| `.pcma` | G.711 A-law | 8 kHz only | 8 |
+
+### Sample Rate × Codec Compatibility
+
+| Sample Rate | `.pcm` | `.pcmu` | `.pcma` |
+|-------------|:------:|:-------:|:-------:|
+| 8 kHz | ✅ | ✅ | ✅ |
+| 16 kHz | ✅ | ❌ | ❌ |
+| 22.05 kHz | ✅ | ❌ | ❌ |
+| 24 kHz | ✅ | ❌ | ❌ |
+| 32 kHz | ✅ | ❌ | ❌ |
+| 44.1 kHz | ✅ | ❌ | ❌ |
+| 48 kHz | ✅ | ❌ | ❌ |
+
+### Transport Modes
+
+| Transport | Description |
+|-----------|-------------|
+| `.json` (default) | Audio bytes base64-encoded in JSON payloads |
+| `.binary` | Raw binary frames (lower latency, less bandwidth) |
+
+### Configuration Examples
+
+```swift
+// Default configuration (PCM, 24kHz, JSON transport)
+let config = NovaSonicConfiguration()
+
+// High-fidelity with binary transport
+let hifiConfig = NovaSonicConfiguration(
+    inputSampleRate: .rate48kHz,
+    outputSampleRate: .rate48kHz,
+    inputTransport: .binary,
+    outputTransport: .binary
+)
+
+// Telephony (G.711 µ-law, 8kHz)
+let telephonyConfig = NovaSonicConfiguration.telephony
+// Or explicitly:
+let telConfig = NovaSonicConfiguration(
+    inputSampleRate: .rate8kHz,
+    outputSampleRate: .rate8kHz,
+    inputCodec: .pcmu,
+    outputCodec: .pcmu
+)
+```
+
+### Migration Note
+
+> **Breaking Change:** The default `inputSampleRate` has changed from `.rate16kHz` to `.rate24kHz`. If your audio capture hardware produces 16kHz PCM, explicitly set `inputSampleRate: .rate16kHz`.
+
 ## Requirements
 
 - iOS 16.0+

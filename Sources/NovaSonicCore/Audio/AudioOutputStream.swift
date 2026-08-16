@@ -35,6 +35,12 @@ public class AudioOutputStream {
     private let engine: AVAudioEngine
     private var playerNode = AVAudioPlayerNode()
 
+    // Codec support
+    private var codec: AudioCodec = .pcm
+    private var g711Decoder: AVAudioConverter?
+    private var g711SourceFormat: AVAudioFormat?
+    private var currentTransport: AudioTransport = .json
+
     public init(sourceSampleRate: Double = 24000) throws {
         // Create input format with configurable sample rate
         guard let format = AVAudioFormat(
@@ -77,7 +83,32 @@ public class AudioOutputStream {
         needsReinit = false
         NovaSonicLogger.verbose("AudioOutputStream initialized successfully for \(sourceSampleRate) Hz")
     }
-    
+
+    /// Codec-aware initializer for configurable audio output format.
+    public convenience init(codec: AudioCodec, sampleRate: NovaSonicSampleRate, transport: AudioTransport = .json) throws {
+        let sourceRate: Double = codec.isFixedRate ? 8000.0 : Double(sampleRate.rawValue)
+        try self.init(sourceSampleRate: sourceRate)
+        self.codec = codec
+        self.currentTransport = transport
+        if codec == .pcmu || codec == .pcma {
+            self.g711Decoder = AudioFormatFactory.makeDecoder(codec: codec)
+            self.g711SourceFormat = AudioFormatFactory.g711Format(codec: codec)
+            if self.g711Decoder == nil {
+                throw NovaSonicConfigurationError.unsupportedCodec(codec)
+            }
+        }
+    }
+
+    /// Atomically switch transport mode.
+    public func switchTransport(to newTransport: AudioTransport) {
+        currentTransport = newTransport
+    }
+
+    /// Current transport mode.
+    public var transport: AudioTransport {
+        return currentTransport
+    }
+
     // Method to reinitialize the player node if needed
     func ensureValidState() throws {
         if needsReinit {

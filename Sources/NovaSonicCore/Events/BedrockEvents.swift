@@ -75,6 +75,59 @@ public struct BedrockEvents {
         return encodeJSON(event)
     }
 
+    /// Codec-aware prompt start event for configurable audio output format.
+    public static func promptStartEvent(
+        promptName: String,
+        voiceId: String,
+        outputCodec: AudioCodec,
+        outputSampleRate: Int
+    ) -> String {
+        let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
+
+        let toolsArray = toolSpecs.map { spec in
+            [
+                "toolSpec": [
+                    "name": spec.name,
+                    "description": spec.description,
+                    "inputSchema": [
+                        "json": spec.schema
+                    ]
+                ]
+            ]
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "promptStart": [
+                    "promptName": promptName,
+                    "textOutputConfiguration": [
+                        "mediaType": "text/plain"
+                    ],
+                    "audioOutputConfiguration": [
+                        "mediaType": outputCodec.mediaType,
+                        "sampleRateHertz": outputSampleRate,
+                        "sampleSizeBits": outputCodec.sampleSizeBits,
+                        "channelCount": 1,
+                        "voiceId": voiceId,
+                        "encoding": "base64",
+                        "audioType": "SPEECH"
+                    ],
+                    "toolUseOutputConfiguration": [
+                        "mediaType": "application/json"
+                    ],
+                    "toolConfiguration": [
+                        "toolChoice": [
+                            "auto": [:]
+                        ],
+                        "tools": toolsArray
+                    ]
+                ]
+            ]
+        ]
+
+        return encodeJSON(event)
+    }
+
     public static func historyTextInputEvent(promptName: String, contentName: String, content: String, role: String) -> String {
         let event: [String: Any] = [
             "event": [
@@ -216,6 +269,35 @@ public struct BedrockEvents {
             }
         }
         """
+    }
+
+    /// Codec-aware audio content start event for configurable audio input format.
+    public static func audioContentStartEvent(
+        promptName: String,
+        audioContentName: String,
+        inputCodec: AudioCodec,
+        inputSampleRate: Int
+    ) -> String {
+        let event: [String: Any] = [
+            "event": [
+                "contentStart": [
+                    "promptName": promptName,
+                    "contentName": audioContentName,
+                    "type": "AUDIO",
+                    "interactive": true,
+                    "role": "USER",
+                    "audioInputConfiguration": [
+                        "mediaType": inputCodec.mediaType,
+                        "sampleRateHertz": inputSampleRate,
+                        "sampleSizeBits": inputCodec.sampleSizeBits,
+                        "channelCount": 1,
+                        "audioType": "SPEECH",
+                        "encoding": "base64"
+                    ]
+                ]
+            ]
+        ]
+        return encodeJSON(event)
     }
 
     public static func audioInputEvent(audioData: Data, promptName: String, audioContentName: String) -> String {

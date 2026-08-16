@@ -52,7 +52,19 @@ public struct NovaSonicConfiguration {
     
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
-    
+
+    /// Input audio codec (PCM, G.711 µ-law, or G.711 A-law)
+    public let inputCodec: AudioCodec
+
+    /// Output audio codec (PCM, G.711 µ-law, or G.711 A-law)
+    public let outputCodec: AudioCodec
+
+    /// Transport mode for sending audio input to the service
+    public let inputTransport: AudioTransport
+
+    /// Transport mode for receiving audio output from the service
+    public let outputTransport: AudioTransport
+
     #if IOS_AUDIO
     /// iOS audio session category
     public let audioSessionCategory: AVAudioSession.Category
@@ -102,8 +114,12 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
-        inputSampleRate: NovaSonicSampleRate = .rate16kHz,
+        inputSampleRate: NovaSonicSampleRate = .rate24kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        inputCodec: AudioCodec = .pcm,
+        outputCodec: AudioCodec = .pcm,
+        inputTransport: AudioTransport = .json,
+        outputTransport: AudioTransport = .json,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +140,10 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputCodec = inputCodec
+        self.outputCodec = outputCodec
+        self.inputTransport = inputTransport
+        self.outputTransport = outputTransport
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +151,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -151,8 +171,12 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
-        inputSampleRate: NovaSonicSampleRate = .rate16kHz,
+        inputSampleRate: NovaSonicSampleRate = .rate24kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        inputCodec: AudioCodec = .pcm,
+        outputCodec: AudioCodec = .pcm,
+        inputTransport: AudioTransport = .json,
+        outputTransport: AudioTransport = .json,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -175,6 +199,10 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputCodec = inputCodec
+        self.outputCodec = outputCodec
+        self.inputTransport = inputTransport
+        self.outputTransport = outputTransport
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -206,7 +234,15 @@ public extension NovaSonicConfiguration {
         inputSampleRate: .rate8kHz,
         outputSampleRate: .rate8kHz
     )
-    
+
+    /// Telephony configuration (G.711 µ-law, 8kHz)
+    static let telephony = NovaSonicConfiguration(
+        inputSampleRate: .rate8kHz,
+        outputSampleRate: .rate8kHz,
+        inputCodec: .pcmu,
+        outputCodec: .pcmu
+    )
+
     /// Creative responses configuration
     static let creative = NovaSonicConfiguration(
         temperature: 0.9,
@@ -385,16 +421,24 @@ public enum NovaSonicVoice: String, CaseIterable {
 
 /// Audio sample rate options supported by Nova Sonic
 /// Higher rates give crisper output but use more bandwidth
-public enum NovaSonicSampleRate: Int, CaseIterable {
+public enum NovaSonicSampleRate: Int, CaseIterable, Sendable, Hashable {
     case rate8kHz = 8000
     case rate16kHz = 16000   // Demo default for input
     case rate24kHz = 24000   // Demo default for output
-    
+    case rate22kHz  = 22050  // Legacy compatibility
+    case rate32kHz  = 32000  // Wideband
+    case rate44kHz  = 44100  // CD quality rate
+    case rate48kHz  = 48000  // Hardware native on most iOS devices
+
     public var displayName: String {
         switch self {
         case .rate8kHz: return "8 kHz (Low Quality, Low Bandwidth)"
         case .rate16kHz: return "16 kHz (Standard Quality)"
         case .rate24kHz: return "24 kHz (High Quality, Crisper Output)"
+        case .rate22kHz: return "22.05 kHz (Legacy)"
+        case .rate32kHz: return "32 kHz (Wideband)"
+        case .rate44kHz: return "44.1 kHz (CD Quality)"
+        case .rate48kHz: return "48 kHz (Studio Quality)"
         }
     }
     
@@ -464,5 +508,15 @@ extension NovaSonicConfiguration {
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
         }
+
+        // Validate audio codec/rate/transport combinations
+        try NovaSonicConfigurationValidator.validateAudioConfiguration(
+            inputCodec: inputCodec,
+            outputCodec: outputCodec,
+            inputSampleRate: inputSampleRate,
+            outputSampleRate: outputSampleRate,
+            inputTransport: inputTransport,
+            outputTransport: outputTransport
+        )
     }
 }

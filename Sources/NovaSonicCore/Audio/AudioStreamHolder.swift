@@ -35,5 +35,13 @@ public actor AudioStreamHolder {
         outputStream = nil
         return (oldInput, oldOutput)
     }
+
+    public func switchInputTransport(_ transport: AudioTransport) {
+        inputStream?.switchTransport(to: transport)
+    }
+
+    public func switchOutputTransport(_ transport: AudioTransport) {
+        outputStream?.switchTransport(to: transport)
+    }
 }
 #endif

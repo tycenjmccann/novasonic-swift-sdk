@@ -50,6 +50,17 @@ public class NovaSonicStreamManager: ObservableObject {
     // MARK: - Delegate
     public weak var delegate: NovaSonicStreamDelegate?
     
+    // MARK: - Binary Transport
+
+    /// Raw audio output data stream for binary transport mode.
+    /// Each element is one audio frame as Data.
+    public private(set) lazy var binaryAudioOutput: AsyncStream<Data> = {
+        AsyncStream(bufferingPolicy: .bufferingNewest(64)) { continuation in
+            self.binaryAudioContinuation = continuation
+        }
+    }()
+    private var binaryAudioContinuation: AsyncStream<Data>.Continuation?
+
     // MARK: - Private Properties
     private var isSpeculativeText = true
     
@@ -480,7 +491,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 var textInitEvents: [(String, String)] = [
                     // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
                     (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
-                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
+                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputCodec: configuration!.outputCodec, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
                     (BedrockEvents.contentEndEvent(promptName: promptName, contentName: contentName), "contentEnd")
@@ -530,7 +541,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 }
                 
                 // Send the audio initialization event.
-                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz)
+                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputCodec: configuration!.inputCodec, inputSampleRate: configuration!.inputSampleRate.hertz)
                 yieldEvent(audioInitEvent, label: "audioContentStart")
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 
@@ -1116,6 +1127,20 @@ public class NovaSonicStreamManager: ObservableObject {
 
         NovaSonicLogger.error("hello.wav not found in package or app bundle — speakFirst will be skipped")
         return nil
+    }
+
+    // MARK: - Binary Transport Support
+
+    /// Delivers raw audio data to the binary output stream.
+    /// Called when binary audio frames are received from the service.
+    private func deliverBinaryAudio(_ data: Data) {
+        binaryAudioContinuation?.yield(data)
+    }
+
+    /// Finishes the binary audio output stream.
+    /// Called when the session ends.
+    private func finishBinaryAudioStream() {
+        binaryAudioContinuation?.finish()
     }
 }
 
