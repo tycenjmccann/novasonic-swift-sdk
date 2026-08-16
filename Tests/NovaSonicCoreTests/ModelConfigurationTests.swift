@@ -16,7 +16,12 @@ final class ModelConfigurationTests: XCTestCase {
 
     func testEarlyAccessRejectedOutsideUSEast1() {
         let cfg = NovaSonicConfiguration(region: "us-west-2", model: .novaSonic25EA)
-        XCTAssertThrowsError(try cfg.validate(), "2.5 EA must be rejected outside us-east-1")
+        XCTAssertThrowsError(try cfg.validate(), "2.5 EA must be rejected outside us-east-1") { error in
+            guard case NovaSonicError.validationFailed = error as? NovaSonicError else {
+                XCTFail("Expected .validationFailed, got \(error)")
+                return
+            }
+        }
     }
 
     func testEarlyAccessAcceptedInUSEast1() {
@@ -31,7 +36,12 @@ final class ModelConfigurationTests: XCTestCase {
 
     func testUnsupportedRegionStillRejected() {
         let cfg = NovaSonicConfiguration(region: "eu-west-1", model: .novaSonic2)
-        XCTAssertThrowsError(try cfg.validate())
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.validationFailed = error as? NovaSonicError else {
+                XCTFail("Expected .validationFailed, got \(error)")
+                return
+            }
+        }
     }
 
     // MARK: - Per-model region support (PR #4 review, Codex)
@@ -42,12 +52,22 @@ final class ModelConfigurationTests: XCTestCase {
         XCTAssertNoThrow(try NovaSonicConfiguration(region: "eu-north-1", model: .novaSonic1).validate())
         XCTAssertNoThrow(try NovaSonicConfiguration(region: "ap-northeast-1", model: .novaSonic1).validate())
         XCTAssertThrowsError(try NovaSonicConfiguration(region: "us-west-2", model: .novaSonic1).validate(),
-                             "v1 is not available in us-west-2")
+                             "v1 is not available in us-west-2") { error in
+            guard case NovaSonicError.validationFailed = error as? NovaSonicError else {
+                XCTFail("Expected .validationFailed, got \(error)")
+                return
+            }
+        }
     }
 
     func testV2RegionsRejectEUNorth1() {
         // eu-north-1 is a v1 region, not a v2 region.
-        XCTAssertThrowsError(try NovaSonicConfiguration(region: "eu-north-1", model: .novaSonic2).validate())
+        XCTAssertThrowsError(try NovaSonicConfiguration(region: "eu-north-1", model: .novaSonic2).validate()) { error in
+            guard case NovaSonicError.validationFailed = error as? NovaSonicError else {
+                XCTFail("Expected .validationFailed, got \(error)")
+                return
+            }
+        }
     }
 
     func testEarlyAccessOnlyUSEast1() {
@@ -59,7 +79,12 @@ final class ModelConfigurationTests: XCTestCase {
     func testNovaSonic1WithNova2OnlyVoiceIsRejected() {
         // olivia (Australian) was introduced with Nova 2.0 — reject on v1.
         let cfg = NovaSonicConfiguration(region: "us-east-1", model: .novaSonic1, voice: .olivia)
-        XCTAssertThrowsError(try cfg.validate(), "v1 + a Nova 2.0-only voice must be rejected before stream open")
+        XCTAssertThrowsError(try cfg.validate(), "v1 + a Nova 2.0-only voice must be rejected before stream open") { error in
+            guard case NovaSonicError.validationFailed = error as? NovaSonicError else {
+                XCTFail("Expected .validationFailed, got \(error)")
+                return
+            }
+        }
     }
 
     func testNovaSonic1WithV1SafeVoiceIsAccepted() {

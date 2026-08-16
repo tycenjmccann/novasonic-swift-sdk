@@ -191,6 +191,10 @@ public class NovaSonicStreamManager: ObservableObject {
     public func configure(with config: NovaSonicConfiguration, bedrockClient: BedrockRuntimeClient? = nil) {
         do {
             try config.validate()
+        } catch let error as NovaSonicError {
+            lastError = error
+            NovaSonicLogger.error("❌ Invalid configuration: \(error.localizedDescription)")
+            return
         } catch {
             lastError = NovaSonicError.invalidConfiguration
             NovaSonicLogger.error("❌ Invalid configuration: \(error.localizedDescription)")
@@ -291,7 +295,7 @@ public class NovaSonicStreamManager: ObservableObject {
         NovaSonicLogger.standard("🔵 Starting Nova Sonic session")
         guard configuration != nil else {
             NovaSonicLogger.error("❌ Configuration is nil!")
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(field: "configuration", reason: "NovaSonicStreamManager has not been configured. Call configure(with:) before startSession()")
         }
         
         // Get tool specs from registry for session start

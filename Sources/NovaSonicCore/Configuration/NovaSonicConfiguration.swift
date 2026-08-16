@@ -454,35 +454,46 @@ extension NovaSonicConfiguration {
     
     /// Validate configuration parameters
     public func validate() throws {
-        // Supported regions depend on the model (per AWS model cards).
         guard model.supportedRegions.contains(region) else {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "region",
+                reason: "'\(region)' is not supported for model \(model.displayName). Supported regions: \(model.supportedRegions.joined(separator: ", "))"
+            )
         }
 
-        // Nova Sonic 1 predates the Nova 2.0 voice set — reject v1 + a v2-only voice up front
-        // rather than letting Bedrock fail the stream at open time.
         if model == .novaSonic1 && voice.isNova2Only {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "voice",
+                reason: "'\(voice.rawValue)' (\(voice.displayName)) requires Nova Sonic 2.0 or later and is not available on \(model.displayName)"
+            )
         }
 
-        // Validate temperature range
         guard temperature >= 0.0 && temperature <= 1.0 else {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "temperature",
+                reason: "Value \(temperature) is out of range. Must be between 0.0 and 1.0"
+            )
         }
-        
-        // Validate topP range
+
         guard topP >= 0.0 && topP <= 1.0 else {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "topP",
+                reason: "Value \(topP) is out of range. Must be between 0.0 and 1.0"
+            )
         }
-        
-        // Validate maxTokens
+
         guard maxTokens > 0 && maxTokens <= 4096 else {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "maxTokens",
+                reason: "Value \(maxTokens) is out of range. Must be between 1 and 4096"
+            )
         }
-        
-        // Validate system prompt
+
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw NovaSonicError.invalidConfiguration
+            throw NovaSonicError.validationFailed(
+                field: "systemPrompt",
+                reason: "System prompt cannot be empty or whitespace-only"
+            )
         }
     }
 }
