@@ -299,7 +299,8 @@ public struct BedrockEvents {
     // MARK: - Session Update Events
 
     /// Builds a sessionUpdate event for pronunciation replacements, language hint, and/or keyterms.
-    /// Only includes keys that are non-nil. Returns nil if all parameters are nil.
+    /// Only includes keys that are non-nil and non-empty. Returns nil if all parameters are nil
+    /// or if all effective values are empty (e.g. empty dict/array).
     public static func sessionUpdateEvent(
         pronunciationReplacements: [String: String]?,
         languageHint: String?,
@@ -331,6 +332,8 @@ public struct BedrockEvents {
                 ]
             }
         }
+
+        guard !sessionUpdate.isEmpty else { return nil }
 
         let event: [String: Any] = [
             "event": [
