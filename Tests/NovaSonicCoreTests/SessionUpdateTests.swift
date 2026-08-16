@@ -176,4 +176,24 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertEqual(replace["AI"], "A.I.")
         XCTAssertNil(sessionUpdate["audio"])
     }
+
+    // MARK: - Empty Collection Edge Cases (TEAM-2485)
+
+    func testSessionUpdateEventReturnsNilForEmptyKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: nil,
+            languageHint: nil,
+            keyterms: []
+        )
+        XCTAssertNil(json, "Empty keyterms array with other fields nil should return nil")
+    }
+
+    func testSessionUpdateEventReturnsNilForEmptyReplacementsAndEmptyKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: [:],
+            languageHint: nil,
+            keyterms: []
+        )
+        XCTAssertNil(json, "Empty replacements dict + empty keyterms array with languageHint nil should return nil")
+    }
 }
