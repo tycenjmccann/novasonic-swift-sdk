@@ -14,6 +14,7 @@ struct ContentView: View {
     @StateObject private var floatingButtonStreamManager = NovaSonicStreamManager()
     @StateObject private var chatViewStreamManager = NovaSonicStreamManager()
     @State private var launchSonic = false
+    @State private var sessionUpdateSent = false
 
     
     var body: some View {
@@ -59,6 +60,27 @@ struct ContentView: View {
                     Text("My Button")
                 }
                 .buttonStyle(.borderedProminent)
+
+                Button(action: {
+                    Task {
+                        do {
+                            try await floatingButtonStreamManager.sendSessionUpdate(
+                                languageHint: "en",
+                                keyterms: ["Nova Sonic", "Bedrock", "Kubernetes"]
+                            )
+                            sessionUpdateSent = true
+                        } catch {
+                            print("Session update failed: \(error)")
+                        }
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: sessionUpdateSent ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                        Text(sessionUpdateSent ? "Keyterms Sent" : "Send Keyterms Update")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(!floatingButtonStreamManager.isStreaming)
             }
             
         }

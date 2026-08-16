@@ -158,3 +158,285 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+/// Tests for session.update feature: pronunciation replacements, language hint, and keyterms.
+final class SessionUpdateTests: XCTestCase {
+
+    // MARK: - Serialization Tests
+
+    func testSessionUpdateEventWithReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["Acme Mobile": "Acme Mobull"], languageHint: nil, keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let replaceDict = session["replace"] as! [String: String]
+        XCTAssertEqual(replaceDict["Acme Mobile"], "Acme Mobull")
+        // Should NOT have audio key when languageHint and keyterms are nil
+        XCTAssertNil(session["audio"])
+    }
+
+    func testSessionUpdateEventWithNilReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: "ja", keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        XCTAssertNil(session["replace"])
+    }
+
+    func testSessionUpdateEventWithEmptyReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: [:], languageHint: nil, keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let replaceDict = session["replace"] as! [String: String]
+        XCTAssertTrue(replaceDict.isEmpty)
+    }
+
+    func testSessionUpdateEventWithLanguageHint() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: "ja", keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertEqual(transcription["language_hint"] as? String, "ja")
+    }
+
+    func testSessionUpdateEventWithNilLanguageHint() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: ["Kubernetes"])
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertNil(transcription["language_hint"])
+    }
+
+    func testSessionUpdateEventWithKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: ["Kubernetes", "gRPC"])
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        let keyterms = transcription["keyterms"] as! [String]
+        XCTAssertEqual(keyterms, ["Kubernetes", "gRPC"])
+    }
+
+    func testSessionUpdateEventWithNilKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: "en", keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertNil(transcription["keyterms"])
+    }
+
+    func testSessionUpdateEventWithEmptyKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: [])
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        let keyterms = transcription["keyterms"] as! [String]
+        XCTAssertTrue(keyterms.isEmpty)
+    }
+
+    func testSessionUpdateEventCombinedAllFields() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            replace: ["AWS": "A W S"],
+            languageHint: "en",
+            keyterms: ["Kubernetes", "Lambda"]
+        )
+        let data = json.data(using: .utf8)!
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = parsed["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+
+        // Check replace
+        let replaceDict = session["replace"] as! [String: String]
+        XCTAssertEqual(replaceDict["AWS"], "A W S")
+
+        // Check language_hint and keyterms
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertEqual(transcription["language_hint"] as? String, "en")
+        let keyterms = transcription["keyterms"] as! [String]
+        XCTAssertEqual(keyterms, ["Kubernetes", "Lambda"])
+    }
+
+    // MARK: - Language Hint Validation Tests
+
+    func testBareEsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidLanguageHint = error else {
+                XCTFail("Expected invalidLanguageHint, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testBarePtRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidLanguageHint = error else {
+                XCTFail("Expected invalidLanguageHint, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testBareEsCaseInsensitive() {
+        let cfg = NovaSonicConfiguration(languageHint: "ES")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testBarePtCaseInsensitive() {
+        let cfg = NovaSonicConfiguration(languageHint: "PT")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testValidLanguageCodes() {
+        let validCodes = ["en", "ar-EG", "ar-SA", "ar-AE", "bn", "zh", "fr", "de", "hi", "id", "it", "ja", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
+        for code in validCodes {
+            let cfg = NovaSonicConfiguration(languageHint: code)
+            XCTAssertNoThrow(try cfg.validate(), "Language code '\(code)' should be accepted")
+        }
+    }
+
+    func testUnrecognizedLanguageCodePassesSilently() {
+        let cfg = NovaSonicConfiguration(languageHint: "sw")
+        XCTAssertNoThrow(try cfg.validate(), "Unrecognized code 'sw' should pass validation")
+
+        let cfg2 = NovaSonicConfiguration(languageHint: "tlh")
+        XCTAssertNoThrow(try cfg2.validate(), "Unrecognized code 'tlh' should pass validation")
+    }
+
+    // MARK: - Keyterms Validation Tests
+
+    func testKeytermsTooManyRejected() {
+        let terms = Array(repeating: "term", count: 101)
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidKeyterms = error else {
+                XCTFail("Expected invalidKeyterms, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testKeytermsExactly100Accepted() {
+        let terms = Array(repeating: "term", count: 100)
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermTooLongRejected() {
+        let longTerm = String(repeating: "a", count: 51)
+        let cfg = NovaSonicConfiguration(keyterms: [longTerm])
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidKeyterms = error else {
+                XCTFail("Expected invalidKeyterms, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testKeytermExactly50Accepted() {
+        let term = String(repeating: "a", count: 50)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testEmptyKeytermsAccepted() {
+        let cfg = NovaSonicConfiguration(keyterms: [])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testNilKeytermsAccepted() {
+        let cfg = NovaSonicConfiguration(keyterms: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // MARK: - Session Update Guard Test
+
+    @MainActor
+    func testSendSessionUpdateThrowsWhenNotActive() async {
+        let manager = NovaSonicStreamManager()
+        do {
+            try await manager.sendSessionUpdate(languageHint: "en")
+            XCTFail("Expected sessionNotActive error")
+        } catch {
+            guard case NovaSonicError.sessionNotActive = error else {
+                XCTFail("Expected sessionNotActive, got \(error)")
+                return
+            }
+        }
+    }
+
+    // MARK: - Response Parsing Test
+
+    func testSessionUpdatedEventParsing() {
+        let json = """
+        {
+            "event": {
+                "sessionUpdated": {
+                    "sessionId": "test-session-123"
+                }
+            }
+        }
+        """
+        let event = EventParser.parse(json)
+        guard case .sessionUpdated(let response) = event else {
+            XCTFail("Expected sessionUpdated event, got \(String(describing: event))")
+            return
+        }
+        XCTAssertEqual(response.sessionId, "test-session-123")
+    }
+
+    // MARK: - Configuration Backward Compatibility
+
+    func testNewPropertiesDefaultToNil() {
+        let cfg = NovaSonicConfiguration()
+        XCTAssertNil(cfg.replace)
+        XCTAssertNil(cfg.languageHint)
+        XCTAssertNil(cfg.keyterms)
+    }
+
+    func testConfigurationWithAllNewFields() {
+        let cfg = NovaSonicConfiguration(
+            replace: ["hello": "heh-low"],
+            languageHint: "fr",
+            keyterms: ["bonjour", "merci"]
+        )
+        XCTAssertEqual(cfg.replace, ["hello": "heh-low"])
+        XCTAssertEqual(cfg.languageHint, "fr")
+        XCTAssertEqual(cfg.keyterms, ["bonjour", "merci"])
+    }
+}
