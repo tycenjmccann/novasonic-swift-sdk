@@ -90,6 +90,187 @@ final class ModelConfigurationTests: XCTestCase {
     }
 }
 
+// MARK: - Pronunciation, Language Hint, and Keyterms Tests
+
+final class SessionUpdateConfigurationTests: XCTestCase {
+
+    // FR-011.1: replace with multiple entries serializes correctly
+    func testReplaceMultipleEntriesSerializes() {
+        let json = BedrockEvents.sessionUpdate(
+            voice: "tiffany",
+            instructions: "You are a helpful assistant.",
+            replace: ["AWS": "amazon web services", "NovaSonic": "Nova Sonic"]
+        )
+        let data = json.data(using: .utf8)!
+        let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = obj["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let replace = session["replace"] as! [String: String]
+        XCTAssertEqual(replace["AWS"], "amazon web services")
+        XCTAssertEqual(replace["NovaSonic"], "Nova Sonic")
+    }
+
+    // FR-011.2: replace: nil results in field omission
+    func testReplaceNilOmitsField() {
+        let json = BedrockEvents.sessionUpdate(
+            voice: "tiffany",
+            instructions: "You are a helpful assistant.",
+            replace: nil
+        )
+        let data = json.data(using: .utf8)!
+        let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = obj["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        XCTAssertNil(session["replace"])
+    }
+
+    // FR-011.3: languageHint: "ja" serializes to correct path with correct key
+    func testLanguageHintSerializesToCorrectPath() {
+        let json = BedrockEvents.sessionUpdate(
+            voice: "tiffany",
+            instructions: "Test",
+            languageHint: "ja"
+        )
+        let data = json.data(using: .utf8)!
+        let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = obj["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertEqual(transcription["language_hint"] as? String, "ja")
+    }
+
+    // FR-011.4: languageHint: "es" throws with descriptive error
+    func testLanguageHintBareEsThrows() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.validationError(let msg) = error else {
+                XCTFail("Expected validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("es-ES") || msg.contains("es-MX"), "Error should suggest regional variants")
+        }
+    }
+
+    // FR-011.5: languageHint: "PT" (uppercase) throws (case-insensitive)
+    func testLanguageHintUppercasePTThrows() {
+        let cfg = NovaSonicConfiguration(languageHint: "PT")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.validationError(let msg) = error else {
+                XCTFail("Expected validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("pt-BR") || msg.contains("pt-PT"), "Error should suggest regional variants")
+        }
+    }
+
+    // FR-011.6: languageHint: "es-MX" passes validation
+    func testLanguageHintRegionalVariantPasses() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-MX")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // FR-011.7: keyterms with 100 items passes validation
+    func testKeyterms100ItemsPasses() {
+        let terms = (1...100).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // FR-011.8: keyterms with 101 items throws
+    func testKeyterms101ItemsThrows() {
+        let terms = (1...101).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.validationError(let msg) = error else {
+                XCTFail("Expected validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("101"), "Error should mention actual count")
+            XCTAssertTrue(msg.contains("100"), "Error should mention maximum")
+        }
+    }
+
+    // FR-011.9: keyterms with a 51-character term throws
+    func testKeyterms51CharTermThrows() {
+        let longTerm = String(repeating: "a", count: 51)
+        let cfg = NovaSonicConfiguration(keyterms: [longTerm])
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.validationError(let msg) = error else {
+                XCTFail("Expected validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("51") || msg.contains("50"), "Error should mention character limit")
+        }
+    }
+
+    // FR-011.10: keyterms with a 50-character term passes
+    func testKeyterms50CharTermPasses() {
+        let term = String(repeating: "a", count: 50)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // FR-011.11: combined serialization with all three fields set
+    func testCombinedSerializationAllFields() {
+        let json = BedrockEvents.sessionUpdate(
+            voice: "tiffany",
+            instructions: "You are a helpful assistant.",
+            replace: ["Acme": "Ak-mee"],
+            languageHint: "ja",
+            keyterms: ["Kubernetes", "EKS"]
+        )
+        let data = json.data(using: .utf8)!
+        let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        let event = obj["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+
+        XCTAssertEqual(session["voice"] as? String, "tiffany")
+        XCTAssertEqual(session["instructions"] as? String, "You are a helpful assistant.")
+
+        // replace at session level
+        let replace = session["replace"] as! [String: String]
+        XCTAssertEqual(replace["Acme"], "Ak-mee")
+
+        // language_hint + keyterms under audio.input.transcription
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertEqual(transcription["language_hint"] as? String, "ja")
+        XCTAssertEqual(transcription["keyterms"] as? [String], ["Kubernetes", "EKS"])
+    }
+
+    // FR-011.12: partial combinations (only one or two fields set)
+    func testPartialCombinationOnlyKeyterms() {
+        let json = BedrockEvents.sessionUpdate(
+            voice: "tiffany",
+            instructions: "Test",
+            keyterms: ["term1"]
+        )
+        let data = json.data(using: .utf8)!
+        let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let event = obj["event"] as! [String: Any]
+        let sessionUpdate = event["sessionUpdate"] as! [String: Any]
+        let session = sessionUpdate["session"] as! [String: Any]
+
+        // No replace
+        XCTAssertNil(session["replace"])
+
+        // keyterms present, no language_hint
+        let audio = session["audio"] as! [String: Any]
+        let input = audio["input"] as! [String: Any]
+        let transcription = input["transcription"] as! [String: Any]
+        XCTAssertNil(transcription["language_hint"])
+        XCTAssertEqual(transcription["keyterms"] as? [String], ["term1"])
+    }
+}
+
 /// Sanity checks on the metrics value types used for latency comparison.
 final class SessionMetricsTests: XCTestCase {
 
