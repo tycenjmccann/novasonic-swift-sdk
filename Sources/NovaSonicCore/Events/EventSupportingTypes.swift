@@ -105,8 +105,8 @@ public struct SessionUpdateEvent {
     public func buildEvent() -> String {
         var payload: [String: Any] = ["type": "session.update"]
 
-        // replace at top level (nil omits key; empty dict serializes as {})
-        if let replace = replace {
+        // replace at top level (nil or empty omits key per FR-1.3)
+        if let replace = replace, !replace.isEmpty {
             payload["replace"] = replace
         }
 
