@@ -158,3 +158,174 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+/// Regression tests for binary transport and configurable sample rate (TEAM-2378)
+final class AudioTransportConfigurationTests: XCTestCase {
+
+    // MARK: - Transport Enum Tests
+
+    func testTransportEnumHasJsonAndBinary() {
+        XCTAssertEqual(NovaSonicAudioTransport.allCases.count, 2)
+        XCTAssertTrue(NovaSonicAudioTransport.allCases.contains(.json))
+        XCTAssertTrue(NovaSonicAudioTransport.allCases.contains(.binary))
+    }
+
+    func testJsonTransportEncodingValue() {
+        XCTAssertEqual(NovaSonicAudioTransport.json.encodingValue, "base64")
+    }
+
+    func testBinaryTransportEncodingValue() {
+        XCTAssertNil(NovaSonicAudioTransport.binary.encodingValue)
+    }
+
+    func testTransportRawValues() {
+        XCTAssertEqual(NovaSonicAudioTransport.json.rawValue, "json")
+        XCTAssertEqual(NovaSonicAudioTransport.binary.rawValue, "binary")
+    }
+
+    // MARK: - Configuration Defaults
+
+    func testDefaultTransportIsJson() {
+        let config = NovaSonicConfiguration()
+        XCTAssertEqual(config.inputTransport, .json)
+        XCTAssertEqual(config.outputTransport, .json)
+    }
+
+    func testConfigurationAcceptsBinaryTransport() {
+        let config = NovaSonicConfiguration(inputTransport: .binary, outputTransport: .binary)
+        XCTAssertEqual(config.inputTransport, .binary)
+        XCTAssertEqual(config.outputTransport, .binary)
+    }
+
+    func testConfigurationAcceptsMixedTransport() {
+        let config = NovaSonicConfiguration(inputTransport: .binary, outputTransport: .json)
+        XCTAssertEqual(config.inputTransport, .binary)
+        XCTAssertEqual(config.outputTransport, .json)
+    }
+
+    // MARK: - BedrockEvents: audioContentStartEvent
+
+    func testAudioContentStartEventJsonTransportIncludesEncoding() {
+        let event = BedrockEvents.audioContentStartEvent(
+            promptName: "test-prompt",
+            audioContentName: "test-audio",
+            inputSampleRate: 16000,
+            transport: .json
+        )
+        XCTAssertTrue(event.contains("\"encoding\""))
+        XCTAssertTrue(event.contains("base64"))
+    }
+
+    func testAudioContentStartEventBinaryTransportOmitsEncoding() {
+        let event = BedrockEvents.audioContentStartEvent(
+            promptName: "test-prompt",
+            audioContentName: "test-audio",
+            inputSampleRate: 16000,
+            transport: .binary
+        )
+        XCTAssertFalse(event.contains("\"encoding\""))
+        XCTAssertFalse(event.contains("base64"))
+    }
+
+    func testAudioContentStartEventDefaultIsJson() {
+        let event = BedrockEvents.audioContentStartEvent(
+            promptName: "test-prompt",
+            audioContentName: "test-audio"
+        )
+        XCTAssertTrue(event.contains("base64"))
+    }
+
+    func testAudioContentStartEventRespectsSampleRate() {
+        let event = BedrockEvents.audioContentStartEvent(
+            promptName: "test-prompt",
+            audioContentName: "test-audio",
+            inputSampleRate: 24000
+        )
+        XCTAssertTrue(event.contains("24000"))
+    }
+
+    // MARK: - BedrockEvents: promptStartEvent
+
+    func testPromptStartEventJsonTransportIncludesEncoding() {
+        let event = BedrockEvents.promptStartEvent(
+            promptName: "test-prompt",
+            voiceId: "tiffany",
+            outputSampleRate: 24000,
+            transport: .json
+        )
+        XCTAssertTrue(event.contains("\"encoding\""))
+        XCTAssertTrue(event.contains("base64"))
+    }
+
+    func testPromptStartEventBinaryTransportOmitsEncoding() {
+        let event = BedrockEvents.promptStartEvent(
+            promptName: "test-prompt",
+            voiceId: "tiffany",
+            outputSampleRate: 24000,
+            transport: .binary
+        )
+        XCTAssertFalse(event.contains("\"encoding\""))
+        XCTAssertFalse(event.contains("base64"))
+    }
+
+    func testPromptStartEventDefaultIsJson() {
+        let event = BedrockEvents.promptStartEvent(
+            promptName: "test-prompt",
+            voiceId: "tiffany"
+        )
+        XCTAssertTrue(event.contains("base64"))
+    }
+
+    func testPromptStartEventRespectsSampleRate() {
+        let event = BedrockEvents.promptStartEvent(
+            promptName: "test-prompt",
+            voiceId: "tiffany",
+            outputSampleRate: 8000
+        )
+        XCTAssertTrue(event.contains("8000"))
+    }
+
+    // MARK: - BedrockEvents: audioInputEvent (JSON transport, base64 wrapped)
+
+    func testAudioInputEventProducesBase64Wrapped() {
+        let testData = Data([0x01, 0x02, 0x03, 0x04])
+        let event = BedrockEvents.audioInputEvent(
+            audioData: testData,
+            promptName: "test-prompt",
+            audioContentName: "test-audio"
+        )
+        let expectedBase64 = testData.base64EncodedString()
+        XCTAssertTrue(event.contains(expectedBase64))
+        XCTAssertTrue(event.contains("audioInput"))
+        XCTAssertTrue(event.contains("promptName"))
+        XCTAssertTrue(event.contains("contentName"))
+    }
+
+    // MARK: - BedrockEvents: binaryAudioInputData
+
+    func testBinaryAudioInputDataReturnsRawData() {
+        let testData = Data([0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE])
+        let result = BedrockEvents.binaryAudioInputData(audioData: testData)
+        XCTAssertEqual(result, testData)
+    }
+
+    func testBinaryAudioInputDataPreservesEmptyData() {
+        let emptyData = Data()
+        let result = BedrockEvents.binaryAudioInputData(audioData: emptyData)
+        XCTAssertEqual(result, emptyData)
+    }
+
+    // MARK: - Sample Rate Configuration
+
+    func testSampleRatePassedToEvents() {
+        let config = NovaSonicConfiguration(inputSampleRate: .rate8kHz, outputSampleRate: .rate24kHz)
+        XCTAssertEqual(config.inputSampleRate.hertz, 8000)
+        XCTAssertEqual(config.outputSampleRate.hertz, 24000)
+    }
+
+    func testAllSampleRatesHaveCorrectHertzValues() {
+        XCTAssertEqual(NovaSonicSampleRate.rate8kHz.hertz, 8000)
+        XCTAssertEqual(NovaSonicSampleRate.rate16kHz.hertz, 16000)
+        XCTAssertEqual(NovaSonicSampleRate.rate24kHz.hertz, 24000)
+    }
+}

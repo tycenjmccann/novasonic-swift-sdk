@@ -52,6 +52,12 @@ public struct NovaSonicConfiguration {
     
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
+
+    /// Transport mode for audio input (microphone → Bedrock)
+    public let inputTransport: NovaSonicAudioTransport
+
+    /// Transport mode for audio output (Bedrock → speaker)
+    public let outputTransport: NovaSonicAudioTransport
     
     #if IOS_AUDIO
     /// iOS audio session category
@@ -104,6 +110,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        inputTransport: NovaSonicAudioTransport = .json,
+        outputTransport: NovaSonicAudioTransport = .json,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +132,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputTransport = inputTransport
+        self.outputTransport = outputTransport
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +141,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -153,6 +163,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        inputTransport: NovaSonicAudioTransport = .json,
+        outputTransport: NovaSonicAudioTransport = .json,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -175,6 +187,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.inputTransport = inputTransport
+        self.outputTransport = outputTransport
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -379,6 +393,22 @@ public enum NovaSonicVoice: String, CaseIterable {
             return false
         case .olivia, .tina, .camila, .leo, .aditi, .rohan:
             return true
+        }
+    }
+}
+
+/// Audio transport mode for Nova Sonic streaming
+/// - `.json`: Audio is base64-encoded and wrapped in JSON events (default, existing behavior)
+/// - `.binary`: Audio is sent/received as raw PCM16 binary data
+public enum NovaSonicAudioTransport: String, CaseIterable {
+    case json = "json"
+    case binary = "binary"
+
+    /// The encoding value to use in Bedrock event configurations
+    public var encodingValue: String? {
+        switch self {
+        case .json: return "base64"
+        case .binary: return nil
         }
     }
 }
