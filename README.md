@@ -362,6 +362,68 @@ do {
 }
 ```
 
+## Session Updates (Mid-Stream)
+
+Update pronunciation replacements, language hints, and key terms during an active session without restarting:
+
+### Pronunciation Replacements
+
+```swift
+// Configure replacements at session start
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["Acme Mobile": "Acme Mobull", "NovaSonic": "Nova Sonic"]
+)
+streamManager.configure(with: config)
+
+// Or update mid-session
+try await streamManager.updateSession(
+    replace: ["Acme Mobile": "Acme Mobull", "BrandX": "Brand Ex"]
+)
+```
+
+### Language Hint
+
+```swift
+// Set language hint at configuration time
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    languageHint: "ja"  // Japanese
+)
+
+// Or update mid-session
+try await streamManager.updateSession(languageHint: "es-MX")
+```
+
+### Key Terms
+
+```swift
+// Improve transcription accuracy for domain-specific terms
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    keyterms: ["Acme Mobile", "NovaSonic", "BrandX"]  // Max 100 terms, each ≤ 50 chars
+)
+
+// Or update mid-session
+try await streamManager.updateSession(
+    keyterms: ["Acme Mobile", "NovaSonic", "BrandX", "NewTerm"]
+)
+```
+
+### Combined Update
+
+```swift
+// Send all session update fields at once (sparse — only non-nil fields are sent)
+try await streamManager.updateSession(
+    replace: ["Acme Mobile": "Acme Mobull"],
+    languageHint: "fr",
+    keyterms: ["Acme Mobile", "NovaSonic"]
+)
+```
+
 ## Complete Configuration Example
 
 ```swift

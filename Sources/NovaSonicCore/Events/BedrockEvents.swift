@@ -296,6 +296,32 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    /// Builds a sparse `session.update` JSON payload from a configuration.
+    /// Only non-nil fields (`replace`, `languageHint`, `keyterms`) are included.
+    /// - Parameter configuration: The configuration whose session-update fields to serialize.
+    /// - Returns: A JSON string representing the `session.update` event.
+    public static func sessionUpdateEvent(configuration: NovaSonicConfiguration) -> String {
+        return sessionUpdateEvent(
+            replace: configuration.replace,
+            languageHint: configuration.languageHint,
+            keyterms: configuration.keyterms
+        )
+    }
+
+    /// Builds a sparse `session.update` JSON payload from individual fields.
+    /// Only non-nil fields are included (sparse update semantics).
+    /// - Parameters:
+    ///   - replace: Pronunciation replacements dictionary (nil omits key).
+    ///   - languageHint: BCP-47 language hint for transcription (nil omits key).
+    ///   - keyterms: Domain-specific terms for transcription (nil/empty omits key).
+    /// - Returns: A JSON string representing the `session.update` event.
+    public static func sessionUpdateEvent(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) -> String {
+        let event = SessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        return event.buildEvent()
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

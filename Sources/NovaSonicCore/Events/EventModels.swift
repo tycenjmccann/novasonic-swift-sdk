@@ -11,6 +11,7 @@ public enum NovaResponseEvent {
     case toolUse(ToolUseResponse)
     case contentEnd(ContentEndResponse)
     case completionEnd(CompletionEndEvent)
+    case sessionUpdated(SessionUpdatedResponse)
     case error(ErrorResponse)
 }
 
@@ -101,6 +102,38 @@ public struct ErrorResponse: Codable {
     public let message: String
     public let code: String?
     public let type: String?
+}
+
+// MARK: - Session Update Response
+
+/// Server response confirming a `session.update` event was applied.
+/// Echoes back the fields that were set in the update request.
+public struct SessionUpdatedResponse: Codable {
+    public let type: String
+    public let replace: [String: String]?
+    public let session: SessionUpdatedSession?
+
+    public struct SessionUpdatedSession: Codable {
+        public let audio: SessionUpdatedAudio?
+
+        public struct SessionUpdatedAudio: Codable {
+            public let input: SessionUpdatedInput?
+
+            public struct SessionUpdatedInput: Codable {
+                public let transcription: SessionUpdatedTranscription?
+
+                public struct SessionUpdatedTranscription: Codable {
+                    public let languageHint: String?
+                    public let keyterms: [String]?
+
+                    enum CodingKeys: String, CodingKey {
+                        case languageHint = "language_hint"
+                        case keyterms
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Supporting Enums

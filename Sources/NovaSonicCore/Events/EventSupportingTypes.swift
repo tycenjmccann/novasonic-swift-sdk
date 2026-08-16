@@ -81,3 +81,58 @@ public struct NovaSonicToolSpec {
         self.schema = schema
     }
 }
+
+// MARK: - Session Update
+
+/// Builds the sparse JSON payload for a `session.update` event.
+///
+/// The payload structure places `replace` at the top level alongside `type`,
+/// while `languageHint` and `keyterms` are nested under
+/// `session.audio.input.transcription` with snake_case keys.
+/// Only non-nil fields are included (sparse update semantics).
+public struct SessionUpdateEvent {
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
+
+    public init(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) {
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
+    }
+
+    /// Serializes the event to a JSON string with correct nesting.
+    public func buildEvent() -> String {
+        var payload: [String: Any] = ["type": "session.update"]
+
+        // replace at top level (nil omits key; empty dict serializes as {})
+        if let replace = replace {
+            payload["replace"] = replace
+        }
+
+        // Build nested session.audio.input.transcription
+        var transcription: [String: Any] = [:]
+        if let languageHint = languageHint {
+            transcription["language_hint"] = languageHint
+        }
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            transcription["keyterms"] = keyterms
+        }
+
+        if !transcription.isEmpty {
+            payload["session"] = [
+                "audio": [
+                    "input": [
+                        "transcription": transcription
+                    ]
+                ]
+            ]
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{\"type\":\"session.update\"}"
+        }
+        return string
+    }
+}

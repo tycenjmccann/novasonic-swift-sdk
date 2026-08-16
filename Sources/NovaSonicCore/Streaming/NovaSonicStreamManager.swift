@@ -343,6 +343,50 @@ public class NovaSonicStreamManager: ObservableObject {
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
     
+    // MARK: - Session Update
+    
+    /// Send a session update mid-stream to modify pronunciation replacements,
+    /// language hint, or keyterms without restarting the session.
+    ///
+    /// - Parameters:
+    ///   - replace: Pronunciation replacements dictionary (nil leaves unchanged).
+    ///   - languageHint: BCP-47 language hint for transcription (nil leaves unchanged).
+    ///   - keyterms: Domain-specific terms for transcription (nil leaves unchanged, max 100 items each ≤50 chars).
+    /// - Throws: `NovaSonicError.streamingError` if the session is not active or stream unavailable.
+    ///           `NovaSonicError.invalidConfiguration` if keyterms validation fails.
+    public func updateSession(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+        
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+        
+        // Validate keyterms if provided
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            guard keyterms.count <= 100 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            for term in keyterms {
+                guard term.count <= 50 else {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
+        }
+        
+        let eventJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        
+        NovaSonicLogger.verbose("Sending session.update event")
+        continuation.yield(
+            .chunk(
+                .init(bytes: Data(eventJson.utf8))
+            )
+        )
+        
+        NovaSonicLogger.standard("📝 Session update sent")
+    }
+    
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
@@ -844,6 +888,16 @@ public class NovaSonicStreamManager: ObservableObject {
                 try await audioManager.playAudio(audioData)
             }
             #endif
+        }
+        
+        // Handle session.updated response
+        if let type = event["type"] as? String, type == "session.updated" {
+            NovaSonicLogger.standard("📝 Session update confirmed by server")
+            if let data = try? JSONSerialization.data(withJSONObject: event),
+               let response = try? JSONDecoder().decode(SessionUpdatedResponse.self, from: data) {
+                delegate?.didReceiveTextResponse("Session updated")
+                _ = response // available for future callback/delegate extension
+            }
         }
     }
     

@@ -158,3 +158,259 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+// MARK: - Session Update Tests
+
+/// Tests for session.update event serialization, validation, and response decoding.
+final class SessionUpdateTests: XCTestCase {
+
+    // MARK: - Configuration Property Tests
+
+    func testReplacePropertyDefaultsToNil() {
+        let cfg = NovaSonicConfiguration()
+        XCTAssertNil(cfg.replace)
+    }
+
+    func testLanguageHintPropertyDefaultsToNil() {
+        let cfg = NovaSonicConfiguration()
+        XCTAssertNil(cfg.languageHint)
+    }
+
+    func testKeytermsPropertyDefaultsToNil() {
+        let cfg = NovaSonicConfiguration()
+        XCTAssertNil(cfg.keyterms)
+    }
+
+    func testConfigWithAllSessionUpdateFields() {
+        let cfg = NovaSonicConfiguration(
+            replace: ["Acme Mobile": "Acme Mobull"],
+            languageHint: "ja",
+            keyterms: ["Acme Mobile", "NovaSonic"]
+        )
+        XCTAssertEqual(cfg.replace, ["Acme Mobile": "Acme Mobull"])
+        XCTAssertEqual(cfg.languageHint, "ja")
+        XCTAssertEqual(cfg.keyterms, ["Acme Mobile", "NovaSonic"])
+    }
+
+    // MARK: - Keyterms Validation
+
+    func testKeytermsValidationAccepts100Items() {
+        let terms = (1...100).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermsValidationRejects101Items() {
+        let terms = (1...101).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate(), "More than 100 keyterms must be rejected")
+    }
+
+    func testKeytermsValidationAccepts50CharTerm() {
+        let term = String(repeating: "a", count: 50)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermsValidationRejects51CharTerm() {
+        let term = String(repeating: "a", count: 51)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertThrowsError(try cfg.validate(), "Term exceeding 50 chars must be rejected")
+    }
+
+    func testKeytermsNilPassesValidation() {
+        let cfg = NovaSonicConfiguration(keyterms: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermsEmptyArrayPassesValidation() {
+        let cfg = NovaSonicConfiguration(keyterms: [])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // MARK: - Session Update Event Serialization
+
+    func testSessionUpdateEventWithReplaceOnly() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["Acme Mobile": "Acme Mobull"])
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        let replaceDict = parsed["replace"] as? [String: String]
+        XCTAssertEqual(replaceDict, ["Acme Mobile": "Acme Mobull"])
+        // No session subtree when only replace is set
+        XCTAssertNil(parsed["session"])
+    }
+
+    func testSessionUpdateEventWithEmptyReplace() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: [:])
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        let replaceDict = parsed["replace"] as? [String: String]
+        XCTAssertEqual(replaceDict, [:])
+    }
+
+    func testSessionUpdateEventWithLanguageHintOnly() throws {
+        let json = BedrockEvents.sessionUpdateEvent(languageHint: "ja")
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertNil(parsed["replace"])
+
+        // Verify nesting: session.audio.input.transcription.language_hint
+        let session = parsed["session"] as? [String: Any]
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["language_hint"] as? String, "ja")
+        XCTAssertNil(transcription?["keyterms"])
+    }
+
+    func testSessionUpdateEventWithKeytermsOnly() throws {
+        let json = BedrockEvents.sessionUpdateEvent(keyterms: ["Acme Mobile", "NovaSonic"])
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertNil(parsed["replace"])
+
+        let session = parsed["session"] as? [String: Any]
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["keyterms"] as? [String], ["Acme Mobile", "NovaSonic"])
+        XCTAssertNil(transcription?["language_hint"])
+    }
+
+    func testSessionUpdateEventWithAllFields() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            replace: ["NovaSonic": "Nova Sonic"],
+            languageHint: "es-MX",
+            keyterms: ["BrandX"]
+        )
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertEqual(parsed["replace"] as? [String: String], ["NovaSonic": "Nova Sonic"])
+
+        let session = parsed["session"] as? [String: Any]
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["language_hint"] as? String, "es-MX")
+        XCTAssertEqual(transcription?["keyterms"] as? [String], ["BrandX"])
+    }
+
+    func testSessionUpdateEventNilOmitsAllKeys() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: nil)
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertNil(parsed["replace"])
+        XCTAssertNil(parsed["session"])
+    }
+
+    func testSessionUpdateEventEmptyKeytermsOmitsKey() throws {
+        let json = BedrockEvents.sessionUpdateEvent(keyterms: [])
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        // Empty keyterms should not produce a session subtree
+        XCTAssertNil(parsed["session"])
+    }
+
+    func testSessionUpdateEventFromConfiguration() throws {
+        let cfg = NovaSonicConfiguration(
+            replace: ["Hello": "Hey"],
+            languageHint: "pt-BR",
+            keyterms: ["SDK"]
+        )
+        let json = BedrockEvents.sessionUpdateEvent(configuration: cfg)
+        let data = json.data(using: .utf8)!
+        let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
+        XCTAssertEqual(parsed["replace"] as? [String: String], ["Hello": "Hey"])
+
+        let session = parsed["session"] as? [String: Any]
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["language_hint"] as? String, "pt-BR")
+        XCTAssertEqual(transcription?["keyterms"] as? [String], ["SDK"])
+    }
+
+    func testLanguageHintAcceptsVariousBCP47Tags() throws {
+        for tag in ["ja", "es-MX", "pt-BR", "en-US", "zh-Hans-CN"] {
+            let json = BedrockEvents.sessionUpdateEvent(languageHint: tag)
+            let data = json.data(using: .utf8)!
+            let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+            let session = parsed["session"] as? [String: Any]
+            let audio = session?["audio"] as? [String: Any]
+            let input = audio?["input"] as? [String: Any]
+            let transcription = input?["transcription"] as? [String: Any]
+            XCTAssertEqual(transcription?["language_hint"] as? String, tag)
+        }
+    }
+
+    // MARK: - SessionUpdatedResponse Decoding
+
+    func testSessionUpdatedResponseDecodesFullPayload() throws {
+        let json = """
+        {
+            "type": "session.updated",
+            "replace": {"Acme Mobile": "Acme Mobull"},
+            "session": {
+                "audio": {
+                    "input": {
+                        "transcription": {
+                            "language_hint": "ja",
+                            "keyterms": ["Acme Mobile", "NovaSonic"]
+                        }
+                    }
+                }
+            }
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let response = try JSONDecoder().decode(SessionUpdatedResponse.self, from: data)
+
+        XCTAssertEqual(response.type, "session.updated")
+        XCTAssertEqual(response.replace, ["Acme Mobile": "Acme Mobull"])
+        XCTAssertEqual(response.session?.audio?.input?.transcription?.languageHint, "ja")
+        XCTAssertEqual(response.session?.audio?.input?.transcription?.keyterms, ["Acme Mobile", "NovaSonic"])
+    }
+
+    func testSessionUpdatedResponseDecodesPartialPayload() throws {
+        let json = """
+        {
+            "type": "session.updated",
+            "replace": {"Hello": "Hi"}
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let response = try JSONDecoder().decode(SessionUpdatedResponse.self, from: data)
+
+        XCTAssertEqual(response.type, "session.updated")
+        XCTAssertEqual(response.replace, ["Hello": "Hi"])
+        XCTAssertNil(response.session)
+    }
+
+    func testSessionUpdatedResponseDecodesMinimalPayload() throws {
+        let json = """
+        {"type": "session.updated"}
+        """
+        let data = json.data(using: .utf8)!
+        let response = try JSONDecoder().decode(SessionUpdatedResponse.self, from: data)
+
+        XCTAssertEqual(response.type, "session.updated")
+        XCTAssertNil(response.replace)
+        XCTAssertNil(response.session)
+    }
+}

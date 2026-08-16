@@ -45,6 +45,23 @@ public struct NovaSonicConfiguration {
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
     
+    /// Pronunciation replacements dictionary (Nova 2.0)
+    /// Maps words/phrases to their desired spoken pronunciation.
+    /// Example: `["Acme Mobile": "Acme Mobull"]`
+    /// When non-nil, serialized as a flat JSON object under the `"replace"` key.
+    /// An empty dictionary serializes as `{}`; `nil` omits the key entirely.
+    public let replace: [String: String]?
+    
+    /// Language hint for input transcription (Nova 2.0)
+    /// A BCP-47 language tag (e.g., `"ja"`, `"es-MX"`, `"pt-BR"`) that helps
+    /// the transcription model. No client-side validation beyond non-empty.
+    public let languageHint: String?
+    
+    /// Key terms for improved transcription accuracy (Nova 2.0)
+    /// Maximum 100 terms, each ≤ 50 characters. Helps the transcription model
+    /// recognize domain-specific vocabulary.
+    public let keyterms: [String]?
+    
     // MARK: - Audio Configuration
     
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -102,6 +119,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         historyManager: NovaSonicHistoryManager? = nil,
@@ -122,6 +142,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.historyManager = historyManager
@@ -151,6 +174,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
@@ -173,6 +199,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.audioSessionCategory = audioSessionCategory
@@ -463,6 +492,18 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+        
+        // Validate keyterms constraints (max 100 items, each ≤ 50 characters)
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            guard keyterms.count <= 100 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            for term in keyterms {
+                guard term.count <= 50 else {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
         }
     }
 }
