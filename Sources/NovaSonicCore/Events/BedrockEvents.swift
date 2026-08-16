@@ -296,6 +296,51 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    /// Builds a sessionUpdate event for pronunciation replacements, language hint, and/or keyterms.
+    /// Only includes keys that are non-nil. Returns nil if all parameters are nil.
+    public static func sessionUpdateEvent(
+        pronunciationReplacements: [String: String]?,
+        languageHint: String?,
+        keyterms: [String]?
+    ) -> String? {
+        guard pronunciationReplacements != nil || languageHint != nil || keyterms != nil else {
+            return nil
+        }
+
+        var sessionUpdate: [String: Any] = [:]
+
+        if let replacements = pronunciationReplacements, !replacements.isEmpty {
+            sessionUpdate["replace"] = replacements
+        }
+
+        if languageHint != nil || keyterms != nil {
+            var transcription: [String: Any] = [:]
+            if let hint = languageHint {
+                transcription["language_hint"] = hint
+            }
+            if let terms = keyterms, !terms.isEmpty {
+                transcription["keyterms"] = terms
+            }
+            if !transcription.isEmpty {
+                sessionUpdate["audio"] = [
+                    "input": [
+                        "transcription": transcription
+                    ]
+                ]
+            }
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "sessionUpdate": sessionUpdate
+            ]
+        ]
+
+        return encodeJSON(event)
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

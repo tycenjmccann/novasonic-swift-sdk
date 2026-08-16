@@ -152,6 +152,50 @@ NovaSonicChatView(
 )
 ```
 
+### Session Update Features (Nova 2.0)
+
+#### Pronunciation Replacements
+```swift
+// Configure how terms are pronounced (TTS only — transcript unchanged)
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    pronunciationReplacements: [
+        "Acme Mobile": "Acme Mobull",
+        "iOS": "eye oh ess"
+    ]
+)
+```
+
+#### Language Hint
+```swift
+// Bias transcription toward a specific language
+let config = NovaSonicConfiguration(
+    voice: .lupe,
+    systemPrompt: "Eres un asistente útil.",
+    languageHint: "es-MX"  // Must be regional: es-MX, es-ES, pt-BR, pt-PT
+)
+```
+
+#### Keyterms
+```swift
+// Improve transcription of domain-specific terms (max 100, each ≤50 chars)
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a tech support assistant.",
+    keyterms: ["NovaSonic", "Bedrock", "LPCM"]
+)
+```
+
+#### Mid-Session Updates
+```swift
+// Change settings during an active session
+try await streamManager.sendSessionUpdate(
+    pronunciationReplacements: ["new term": "new pronunciation"],
+    keyterms: ["updated", "terms"]
+)
+```
+
 ## Chat Persistence
 
 ### One-Line DynamoDB Setup

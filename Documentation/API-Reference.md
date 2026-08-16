@@ -209,6 +209,64 @@ enum NovaSonicError: Error {
 }
 ```
 
+## Session Update Features (Nova 2.0)
+
+### Pronunciation Replacements
+
+Configure how specific terms are pronounced in TTS output without changing the visible transcript:
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    pronunciationReplacements: [
+        "Acme Mobile": "Acme Mobull",
+        "iOS": "eye oh ess",
+        "GPT": "G P T"
+    ]
+)
+```
+
+### Language Hint
+
+Bias ASR transcription toward a specific language using BCP-47 codes:
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .lupe,
+    systemPrompt: "Eres un asistente útil.",
+    languageHint: "es-MX"  // Mexican Spanish
+)
+```
+
+> **Note:** Bare language codes `es` and `pt` are rejected — you must use a regional variant like `es-MX`, `es-ES`, `pt-BR`, or `pt-PT`.
+
+### Keyterms
+
+Provide domain-specific terms to improve transcription accuracy:
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a tech support assistant.",
+    keyterms: ["NovaSonic", "Bedrock", "LPCM", "BCP-47"]
+)
+```
+
+Constraints: maximum 100 terms, each ≤50 characters.
+
+### Mid-Session Updates
+
+Update session parameters during an active conversation:
+
+```swift
+try await streamManager.sendSessionUpdate(
+    pronunciationReplacements: ["new term": "new pronunciation"],
+    languageHint: "fr-FR",
+    keyterms: ["updated", "terms"]
+)
+```
+
 ## Sample Rates
 
 | Rate | Value | Quality | Use Case |

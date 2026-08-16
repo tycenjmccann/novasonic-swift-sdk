@@ -342,7 +342,29 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Send a session update event mid-session to change pronunciation replacements, language hint, or keyterms.
+    public func sendSessionUpdate(
+        pronunciationReplacements: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
+    ) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot send session update - session not active")
+        }
+
+        guard let eventJson = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: pronunciationReplacements,
+            languageHint: languageHint,
+            keyterms: keyterms
+        ) else {
+            return
+        }
+
+        try await sendEvent(eventJson, label: "sessionUpdate")
+        NovaSonicLogger.standard("📝 Sent session update event")
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
@@ -480,6 +502,18 @@ public class NovaSonicStreamManager: ObservableObject {
                 var textInitEvents: [(String, String)] = [
                     // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
                     (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
+                ]
+
+                // Send sessionUpdate after sessionStart if any session-update fields are configured
+                if let sessionUpdateJson = BedrockEvents.sessionUpdateEvent(
+                    pronunciationReplacements: configuration!.pronunciationReplacements,
+                    languageHint: configuration!.languageHint,
+                    keyterms: configuration!.keyterms
+                ) {
+                    textInitEvents.append((sessionUpdateJson, "sessionUpdate"))
+                }
+
+                textInitEvents += [
                     (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
