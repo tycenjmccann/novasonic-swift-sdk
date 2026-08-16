@@ -70,6 +70,39 @@ public struct SessionStartEvent: EventBuilder {
 
 // MARK: - Supporting Types
 
+// MARK: - Session Updated Event
+
+public struct SessionUpdatedEvent: Decodable {
+    public let session: SessionEcho
+
+    public struct SessionEcho: Decodable {
+        public let voice: String?
+        public let instructions: String?
+        public let replace: [String: String]?
+        public let audio: AudioConfig?
+
+        public struct AudioConfig: Decodable {
+            public let input: InputConfig
+
+            public struct InputConfig: Decodable {
+                public let transcription: TranscriptionConfig
+
+                public struct TranscriptionConfig: Decodable {
+                    public let languageHint: String?
+                    public let keyterms: [String]?
+
+                    enum CodingKeys: String, CodingKey {
+                        case languageHint = "language_hint"
+                        case keyterms
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Tool Spec
+
 public struct NovaSonicToolSpec {
     public let name: String
     public let description: String

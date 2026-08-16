@@ -14,7 +14,9 @@ public enum NovaSonicError: Error, LocalizedError {
     case rateLimitExceeded
     case invalidAudioFormat
     case microphoneNotAvailable
-    
+    case validationError(String)
+    case sessionNotActive
+
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -51,6 +53,10 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Invalid audio format or corrupted audio data"
         case .microphoneNotAvailable:
             return "Microphone is not available on this device"
+        case .validationError(let detail):
+            return "Validation failed: \(detail)"
+        case .sessionNotActive:
+            return "Cannot update session: no active streaming session"
         case .converterCreationFailed:
             return "Failed to create audio converter"
         case .sessionConfigurationFailed:
@@ -92,6 +98,10 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .microphoneNotAvailable:
             return "Try using a device with microphone support"
+        case .validationError:
+            return "Correct the invalid parameter value and retry"
+        case .sessionNotActive:
+            return "Call startSession() before sending session updates"
         case .converterCreationFailed:
             return "Try restarting the audio session"
         case .sessionConfigurationFailed:
@@ -117,6 +127,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return true  // Audio errors are often retryable
         case .toolExecutionFailed, .streamingError, .audioSessionError, .invalidResponse, .invalidAudioFormat:
             return true
+        case .validationError, .sessionNotActive:
+            return false
         }
     }
 }
