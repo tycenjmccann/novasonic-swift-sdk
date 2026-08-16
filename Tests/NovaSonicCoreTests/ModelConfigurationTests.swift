@@ -158,3 +158,139 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+// MARK: - Session Update Tests
+
+/// Tests for session.update event serialization verifying correct JSON nesting.
+/// Per requirements: replace at event.sessionUpdate.session.replace (inside session object).
+final class SessionUpdateTests: XCTestCase {
+
+    // MARK: - Helpers
+
+    private func parseEvent(_ json: String) throws -> [String: Any] {
+        let data = json.data(using: .utf8)!
+        return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+
+    private func getSession(_ parsed: [String: Any]) -> [String: Any]? {
+        let event = parsed["event"] as? [String: Any]
+        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
+        return sessionUpdate?["session"] as? [String: Any]
+    }
+
+    // MARK: - Replace nesting tests
+
+    func testReplaceIsInsideSessionObject() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["Acme Mobile": "Acme Mobull"])
+        let parsed = try parseEvent(json)
+
+        XCTAssertNil(parsed["replace"], "replace must not be a top-level sibling")
+        XCTAssertNil(parsed["type"], "no 'type' key at top level — envelope pattern used")
+
+        let session = getSession(parsed)
+        XCTAssertNotNil(session, "session object must exist")
+        let replaceDict = session?["replace"] as? [String: String]
+        XCTAssertEqual(replaceDict, ["Acme Mobile": "Acme Mobull"])
+    }
+
+    func testReplaceNilOmitsKey() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: "ja")
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        XCTAssertNil(session?["replace"])
+    }
+
+    func testReplaceEmptyDictOmitsKey() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: [:])
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        XCTAssertNil(session?["replace"])
+    }
+
+    // MARK: - Language hint nesting
+
+    func testLanguageHintAtCorrectPath() throws {
+        let json = BedrockEvents.sessionUpdateEvent(languageHint: "ja")
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["language_hint"] as? String, "ja")
+    }
+
+    // MARK: - Keyterms nesting
+
+    func testKeytermsAtCorrectPath() throws {
+        let json = BedrockEvents.sessionUpdateEvent(keyterms: ["NovaSonic", "Bedrock"])
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["keyterms"] as? [String], ["NovaSonic", "Bedrock"])
+    }
+
+    func testEmptyKeytermsOmitsKey() throws {
+        let json = BedrockEvents.sessionUpdateEvent(keyterms: [])
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        XCTAssertNil(session?["audio"])
+    }
+
+    // MARK: - All fields combined
+
+    func testAllFieldsAtCorrectPaths() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            replace: ["NovaSonic": "Nova Sonic"],
+            languageHint: "es-MX",
+            keyterms: ["BrandX"]
+        )
+        let parsed = try parseEvent(json)
+
+        XCTAssertNotNil(parsed["event"])
+        let event = parsed["event"] as? [String: Any]
+        XCTAssertNotNil(event?["sessionUpdate"])
+
+        let session = getSession(parsed)
+        XCTAssertEqual(session?["replace"] as? [String: String], ["NovaSonic": "Nova Sonic"])
+
+        let audio = session?["audio"] as? [String: Any]
+        let input = audio?["input"] as? [String: Any]
+        let transcription = input?["transcription"] as? [String: Any]
+        XCTAssertEqual(transcription?["language_hint"] as? String, "es-MX")
+        XCTAssertEqual(transcription?["keyterms"] as? [String], ["BrandX"])
+    }
+
+    func testNilFieldsProduceEmptySession() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: nil, languageHint: nil, keyterms: nil)
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        XCTAssertNotNil(session, "session key must still exist")
+        XCTAssertTrue(session?.isEmpty ?? false, "session should be empty dict")
+    }
+
+    // MARK: - Replace only (no audio subtree)
+
+    func testReplaceOnlyDoesNotCreateAudioSubtree() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["Hello": "Hey"])
+        let parsed = try parseEvent(json)
+        let session = getSession(parsed)
+        XCTAssertNotNil(session?["replace"])
+        XCTAssertNil(session?["audio"], "No audio subtree when only replace is set")
+    }
+
+    // MARK: - Event envelope structure
+
+    func testEventEnvelopeStructure() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["A": "B"])
+        let parsed = try parseEvent(json)
+
+        XCTAssertEqual(parsed.count, 1, "Top level should have exactly one key: 'event'")
+        XCTAssertNotNil(parsed["event"])
+
+        let event = parsed["event"] as! [String: Any]
+        XCTAssertEqual(event.count, 1, "event should have exactly one key: 'sessionUpdate'")
+        XCTAssertNotNil(event["sessionUpdate"])
+    }
+}

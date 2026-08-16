@@ -330,4 +330,12 @@ public struct BedrockEvents {
         }
         """
     }
+
+    // MARK: - Session Update Events
+
+    /// Builds a session.update event from individual fields.
+    public static func sessionUpdateEvent(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) -> String {
+        let event = SessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        return event.buildEvent()
+    }
 }
