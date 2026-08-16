@@ -115,7 +115,7 @@ public struct SessionUpdateEvent {
         if let languageHint = languageHint {
             transcription["language_hint"] = languageHint
         }
-        if let keyterms = keyterms, !keyterms.isEmpty {
+        if let keyterms = keyterms {
             transcription["keyterms"] = keyterms
         }
 
