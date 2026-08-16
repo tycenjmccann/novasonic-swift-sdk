@@ -28,7 +28,7 @@ public struct BedrockEvents {
         return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
     }
 
-    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {
+    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000, audioOutputTransport: AudioTransport = .json) -> String {
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
 
         let toolsArray = toolSpecs.map { spec in
@@ -43,6 +43,20 @@ public struct BedrockEvents {
             ]
         }
 
+        var audioOutputConfig: [String: Any] = [
+            "mediaType": "audio/lpcm",
+            "sampleRateHertz": outputSampleRate,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "voiceId": voiceId,
+            "audioType": "SPEECH"
+        ]
+        if audioOutputTransport == .json {
+            audioOutputConfig["encoding"] = "base64"
+        } else {
+            audioOutputConfig["encoding"] = "none"
+        }
+
         let event: [String: Any] = [
             "event": [
                 "promptStart": [
@@ -50,15 +64,7 @@ public struct BedrockEvents {
                     "textOutputConfiguration": [
                         "mediaType": "text/plain"
                     ],
-                    "audioOutputConfiguration": [
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": outputSampleRate,
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "voiceId": voiceId,
-                        "encoding": "base64",
-                        "audioType": "SPEECH"
-                    ],
+                    "audioOutputConfiguration": audioOutputConfig,
                     "toolUseOutputConfiguration": [
                         "mediaType": "application/json"
                     ],
@@ -194,28 +200,33 @@ public struct BedrockEvents {
 
     // MARK: - Audio Streaming Events
 
-    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000) -> String {
-        """
-        {
-            "event": {
-                "contentStart": {
-                    "promptName": "\(promptName)",
-                    "contentName": "\(audioContentName)",
+    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, audioInputTransport: AudioTransport = .json) -> String {
+        var audioInputConfig: [String: Any] = [
+            "mediaType": "audio/lpcm",
+            "sampleRateHertz": inputSampleRate,
+            "sampleSizeBits": 16,
+            "channelCount": 1,
+            "audioType": "SPEECH"
+        ]
+        if audioInputTransport == .json {
+            audioInputConfig["encoding"] = "base64"
+        } else {
+            audioInputConfig["encoding"] = "none"
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "contentStart": [
+                    "promptName": promptName,
+                    "contentName": audioContentName,
                     "type": "AUDIO",
                     "interactive": true,
                     "role": "USER",
-                    "audioInputConfiguration": {
-                        "mediaType": "audio/lpcm",
-                        "sampleRateHertz": \(inputSampleRate),
-                        "sampleSizeBits": 16,
-                        "channelCount": 1,
-                        "audioType": "SPEECH",
-                        "encoding": "base64"
-                    }
-                }
-            }
-        }
-        """
+                    "audioInputConfiguration": audioInputConfig
+                ]
+            ]
+        ]
+        return encodeJSON(event)
     }
 
     public static func audioInputEvent(audioData: Data, promptName: String, audioContentName: String) -> String {
@@ -231,6 +242,12 @@ public struct BedrockEvents {
             }
         }
         """
+    }
+
+    /// Returns raw audio data for binary WebSocket frame transmission.
+    /// In binary transport mode, audio is sent as raw PCM bytes without base64 encoding or JSON wrapping.
+    public static func binaryAudioInputData(audioData: Data) -> Data {
+        return audioData
     }
 
     public static func audioContentEndEvent(promptName: String, audioContentName: String) -> String {

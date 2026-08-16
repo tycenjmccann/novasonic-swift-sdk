@@ -4,6 +4,14 @@ import SmithyIdentity
 import AVFoundation
 #endif
 
+/// Audio transport mode for WebSocket communication
+/// - `.json` (default): Audio is base64-encoded and wrapped in JSON events
+/// - `.binary`: Audio is sent/received as raw PCM binary WebSocket frames
+public enum AudioTransport: String, CaseIterable, Codable {
+    case json = "json"
+    case binary = "binary"
+}
+
 /// Configuration for Nova Sonic speech-to-speech interactions
 public struct NovaSonicConfiguration {
     
@@ -52,7 +60,13 @@ public struct NovaSonicConfiguration {
     
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
-    
+
+    /// Transport mode for audio input (mic → service)
+    public let audioInputTransport: AudioTransport
+
+    /// Transport mode for audio output (service → speaker)
+    public let audioOutputTransport: AudioTransport
+
     #if IOS_AUDIO
     /// iOS audio session category
     public let audioSessionCategory: AVAudioSession.Category
@@ -104,6 +118,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioInputTransport: AudioTransport = .json,
+        audioOutputTransport: AudioTransport = .json,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +140,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioInputTransport = audioInputTransport
+        self.audioOutputTransport = audioOutputTransport
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +149,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -153,6 +171,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioInputTransport: AudioTransport = .json,
+        audioOutputTransport: AudioTransport = .json,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -175,6 +195,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioInputTransport = audioInputTransport
+        self.audioOutputTransport = audioOutputTransport
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
