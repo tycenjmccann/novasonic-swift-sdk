@@ -84,12 +84,12 @@ public struct NovaSonicToolSpec {
 
 // MARK: - Session Update
 
-/// Builds the sparse JSON payload for a `session.update` event.
+/// Builds the JSON payload for a `session.update` event wrapped in the
+/// standard event envelope: `{"event": {"sessionUpdate": {"session": {...}}}}`.
 ///
-/// The payload structure places `replace` at the top level alongside `type`,
-/// while `languageHint` and `keyterms` are nested under
-/// `session.audio.input.transcription` with snake_case keys.
-/// Only non-nil fields are included (sparse update semantics).
+/// `replace` and `audio.input.transcription` are siblings inside the `session`
+/// object. Only non-nil fields are included (sparse update semantics).
+/// If all fields are nil/empty, produces `{"event": {"sessionUpdate": {"session": {}}}}`.
 public struct SessionUpdateEvent {
     public let replace: [String: String]?
     public let languageHint: String?
@@ -103,14 +103,12 @@ public struct SessionUpdateEvent {
 
     /// Serializes the event to a JSON string with correct nesting.
     public func buildEvent() -> String {
-        var payload: [String: Any] = ["type": "session.update"]
+        var session: [String: Any] = [:]
 
-        // replace at top level (nil omits key; empty dict serializes as {})
         if let replace = replace {
-            payload["replace"] = replace
+            session["replace"] = replace
         }
 
-        // Build nested session.audio.input.transcription
         var transcription: [String: Any] = [:]
         if let languageHint = languageHint {
             transcription["language_hint"] = languageHint
@@ -120,18 +118,24 @@ public struct SessionUpdateEvent {
         }
 
         if !transcription.isEmpty {
-            payload["session"] = [
-                "audio": [
-                    "input": [
-                        "transcription": transcription
-                    ]
+            session["audio"] = [
+                "input": [
+                    "transcription": transcription
                 ]
             ]
         }
 
+        let payload: [String: Any] = [
+            "event": [
+                "sessionUpdate": [
+                    "session": session
+                ]
+            ]
+        ]
+
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let string = String(data: data, encoding: .utf8) else {
-            return "{\"type\":\"session.update\"}"
+            return "{\"event\":{\"sessionUpdate\":{\"session\":{}}}}"
         }
         return string
     }
