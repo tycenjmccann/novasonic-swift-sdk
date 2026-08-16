@@ -88,7 +88,21 @@ public struct NovaSonicConfiguration {
     
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
-    
+
+    // MARK: - Session Update Fields
+
+    /// Pronunciation replacement dictionary. Keys are spoken words/phrases,
+    /// values are phonetic alternatives for TTS.
+    public let replace: [String: String]?
+
+    /// BCP-47 language code to bias transcription language detection.
+    /// Bare "es" and "pt" are rejected — use regional variants (e.g., "es-MX", "pt-BR").
+    public let languageHint: String?
+
+    /// Domain-specific vocabulary terms to bias transcription recognition.
+    /// Maximum 100 terms, each max 50 characters.
+    public let keyterms: [String]?
+
     // MARK: - Initialization
     
     public init(
@@ -110,7 +124,10 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.region = region
         self.model = model
@@ -131,7 +148,10 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -161,7 +181,10 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.region = region
         self.model = model
@@ -184,6 +207,9 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
     }
     #endif
 }
@@ -463,6 +489,57 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // --- Session update field validation ---
+
+        if let keyterms {
+            if keyterms.count > 100 {
+                throw NovaSonicError.validationError(
+                    "keyterms contains \(keyterms.count) items but the maximum is 100"
+                )
+            }
+            for (index, term) in keyterms.enumerated() {
+                if term.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "keyterms contains an empty string at index \(index)"
+                    )
+                }
+                if term.count > 50 {
+                    throw NovaSonicError.validationError(
+                        "keyterms item at index \(index) is \(term.count) characters but the maximum is 50"
+                    )
+                }
+            }
+        }
+
+        if let languageHint {
+            let lowered = languageHint.lowercased()
+            if lowered == "es" {
+                throw NovaSonicError.validationError(
+                    "languageHint 'es' requires a regional variant (e.g., 'es-ES', 'es-MX', 'es-US')"
+                )
+            }
+            if lowered == "pt" {
+                throw NovaSonicError.validationError(
+                    "languageHint 'pt' requires a regional variant (e.g., 'pt-BR', 'pt-PT')"
+                )
+            }
+        }
+
+        if let replace {
+            for (key, value) in replace {
+                if key.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "replace dictionary contains an empty key"
+                    )
+                }
+                if value.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "replace value for key '\(key)' is empty"
+                    )
+                }
+            }
         }
     }
 }
