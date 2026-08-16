@@ -311,6 +311,90 @@ public class NovaSonicStreamManager: ObservableObject {
         delegate?.didStopStreaming()
     }
     
+    /// Sends a `session.update` event to modify pronunciation replacements,
+    /// language hint, or keyterms on an active streaming session.
+    ///
+    /// - Parameters:
+    ///   - replace: Pronunciation replacement dictionary (spoken → phonetic).
+    ///   - languageHint: BCP-47 language code for transcription biasing.
+    ///   - keyterms: Domain-specific vocabulary for transcription biasing.
+    /// - Throws: `NovaSonicError.sessionNotActive` if no active session.
+    /// - Throws: `NovaSonicError.validationError` if inputs violate constraints.
+    public func updateSession(
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
+    ) async throws {
+        guard isStreaming, eventStreamContinuation != nil else {
+            throw NovaSonicError.sessionNotActive
+        }
+
+        guard let configuration = self.configuration else {
+            throw NovaSonicError.sessionNotActive
+        }
+
+        if let keyterms {
+            if keyterms.count > 100 {
+                throw NovaSonicError.validationError(
+                    "keyterms contains \(keyterms.count) items but the maximum is 100"
+                )
+            }
+            for (index, term) in keyterms.enumerated() {
+                if term.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "keyterms contains an empty string at index \(index)"
+                    )
+                }
+                if term.count > 50 {
+                    throw NovaSonicError.validationError(
+                        "keyterms item at index \(index) is \(term.count) characters but the maximum is 50"
+                    )
+                }
+            }
+        }
+
+        if let languageHint {
+            let lowered = languageHint.lowercased()
+            if lowered == "es" {
+                throw NovaSonicError.validationError(
+                    "languageHint 'es' requires a regional variant (e.g., 'es-ES', 'es-MX', 'es-US')"
+                )
+            }
+            if lowered == "pt" {
+                throw NovaSonicError.validationError(
+                    "languageHint 'pt' requires a regional variant (e.g., 'pt-BR', 'pt-PT')"
+                )
+            }
+        }
+
+        if let replace {
+            for (key, value) in replace {
+                if key.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "replace dictionary contains an empty key"
+                    )
+                }
+                if value.isEmpty {
+                    throw NovaSonicError.validationError(
+                        "replace value for key '\(key)' is empty"
+                    )
+                }
+            }
+        }
+
+        let jsonString = BedrockEvents.sessionUpdate(
+            voice: configuration.voice.rawValue,
+            instructions: configuration.systemPrompt,
+            replace: replace,
+            languageHint: languageHint,
+            keyterms: keyterms
+        )
+
+        try await sendEvent(jsonString, label: "session.update")
+
+        NovaSonicLogger.standard("📤 session.update sent (replace: \(replace != nil), languageHint: \(languageHint ?? "nil"), keyterms: \(keyterms?.count ?? 0) items)")
+    }
+
     /// Send text message during active session (Nova 2.0)
     /// - Parameter text: The text message to send
     public func sendTextMessage(_ text: String) async throws {
