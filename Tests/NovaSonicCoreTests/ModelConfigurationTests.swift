@@ -158,3 +158,87 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+// MARK: - Language Hint Validation Tests (FR-2.4, FR-2.5, FR-2.6)
+
+final class LanguageHintValidationTests: XCTestCase {
+
+    // FR-2.4: Bare "es" rejected with descriptive error
+    func testBareEsRejectedWithDescriptiveError() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard let nsError = error as? NovaSonicError else {
+                XCTFail("Expected NovaSonicError"); return
+            }
+            let description = nsError.errorDescription ?? ""
+            XCTAssertTrue(description.contains("regional variant"), "Error should mention regional variant, got: \(description)")
+            XCTAssertTrue(description.lowercased().contains("es-"), "Error should suggest es- variants, got: \(description)")
+        }
+    }
+
+    // FR-2.4: Bare "pt" rejected with descriptive error
+    func testBarePtRejectedWithDescriptiveError() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard let nsError = error as? NovaSonicError else {
+                XCTFail("Expected NovaSonicError"); return
+            }
+            let description = nsError.errorDescription ?? ""
+            XCTAssertTrue(description.contains("regional variant"), "Error should mention regional variant, got: \(description)")
+            XCTAssertTrue(description.lowercased().contains("pt-"), "Error should suggest pt- variants, got: \(description)")
+        }
+    }
+
+    // FR-2.4: Case insensitive
+    func testBareEsUppercaseRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "ES")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testBarePtUppercaseRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "PT")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    // FR-2.5: Regional variants accepted
+    func testEsMXAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-MX")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testEsESAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-ES")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testPtBRAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt-BR")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testPtPTAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt-PT")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // FR-2.6: Unknown but well-formed BCP-47 codes pass
+    func testUnknownBCP47CodeAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "xx-YY")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testJapaneseAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "ja")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testEnglishUSAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "en-US")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testNilLanguageHintAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+}

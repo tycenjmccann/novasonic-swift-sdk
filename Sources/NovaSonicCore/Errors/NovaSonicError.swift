@@ -15,6 +15,9 @@ public enum NovaSonicError: Error, LocalizedError {
     case invalidAudioFormat
     case microphoneNotAvailable
     
+    // Language hint validation
+    case invalidLanguageHint(String)
+    
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -49,6 +52,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Rate limit exceeded - too many requests"
         case .invalidAudioFormat:
             return "Invalid audio format or corrupted audio data"
+        case .invalidLanguageHint(let message):
+            return message
         case .microphoneNotAvailable:
             return "Microphone is not available on this device"
         case .converterCreationFailed:
@@ -90,6 +95,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Wait a moment before making another request"
         case .invalidAudioFormat:
             return "Try restarting the audio session"
+        case .invalidLanguageHint:
+            return "Use a regional variant like 'es-MX' or 'pt-BR' instead of bare language codes"
         case .microphoneNotAvailable:
             return "Try using a device with microphone support"
         case .converterCreationFailed:
@@ -111,7 +118,7 @@ public enum NovaSonicError: Error, LocalizedError {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
-        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable, .invalidLanguageHint:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable

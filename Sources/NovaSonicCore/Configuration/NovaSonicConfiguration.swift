@@ -51,6 +51,10 @@ public struct NovaSonicConfiguration {
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
     
+    /// Language hint for input transcription (BCP-47 code, e.g. "ja", "es-MX", "pt-BR").
+    /// Bare "es" and "pt" are rejected — use a regional variant instead.
+    public let languageHint: String?
+    
     // MARK: - Audio Configuration
 
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -114,6 +118,7 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        languageHint: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
@@ -136,6 +141,7 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.languageHint = languageHint
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
@@ -167,6 +173,7 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        languageHint: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
@@ -191,6 +198,7 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.languageHint = languageHint
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
@@ -483,6 +491,21 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+        
+        // Validate languageHint: bare "es" and "pt" require regional variants (FR-2.4)
+        if let hint = languageHint {
+            let lower = hint.lowercased()
+            if lower == "es" {
+                throw NovaSonicError.invalidLanguageHint(
+                    "Bare 'es' language code is not supported. A regional variant is required (e.g., 'es-MX', 'es-ES', 'es-AR')."
+                )
+            }
+            if lower == "pt" {
+                throw NovaSonicError.invalidLanguageHint(
+                    "Bare 'pt' language code is not supported. A regional variant is required (e.g., 'pt-BR', 'pt-PT')."
+                )
+            }
         }
     }
 }

@@ -343,6 +343,36 @@ public class NovaSonicStreamManager: ObservableObject {
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
     
+    // MARK: - Session Update (Language Hint Validation)
+    
+    /// Validate and apply a language hint update mid-session.
+    /// - Parameter languageHint: BCP-47 language tag. Bare "es" and "pt" are rejected.
+    /// - Throws: `NovaSonicError.invalidLanguageHint` if bare "es"/"pt" is passed.
+    ///           `NovaSonicError.streamingError` if no active session.
+    /// - Note: This will be expanded to support replace/keyterms in a future update.
+    public func updateSession(languageHint: String? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+        
+        // Validate languageHint (FR-2.4)
+        if let hint = languageHint {
+            let lower = hint.lowercased()
+            if lower == "es" {
+                throw NovaSonicError.invalidLanguageHint(
+                    "Bare 'es' language code is not supported. A regional variant is required (e.g., 'es-MX', 'es-ES', 'es-AR')."
+                )
+            }
+            if lower == "pt" {
+                throw NovaSonicError.invalidLanguageHint(
+                    "Bare 'pt' language code is not supported. A regional variant is required (e.g., 'pt-BR', 'pt-PT')."
+                )
+            }
+        }
+        
+        NovaSonicLogger.standard("📝 Session update validated (languageHint: \(languageHint ?? "nil"))")
+    }
+    
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
