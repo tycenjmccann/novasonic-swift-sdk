@@ -243,6 +243,32 @@ NovaSonicChatView(
 )
 ```
 
+### Pronunciation Replacements, Language Hint & Keyterms
+
+Configure pronunciation overrides, transcription language biasing, and domain vocabulary at init time or mid-session:
+
+```swift
+// At configuration time
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["Acme Mobile": "Acme Mobull", "NovaSonic": "Nova Sonic"],
+    languageHint: "en-US",
+    keyterms: ["Acme Mobile", "Premium Plan"]
+)
+
+// Mid-session update
+try await manager.updateSession(
+    languageHint: "ja",
+    keyterms: ["アクミモバイル", "プレミアムプラン"]
+)
+```
+
+**Constraints:**
+- `keyterms`: max 100 items, each ≤ 50 characters
+- `languageHint`: BCP-47 codes; bare "es" and "pt" rejected (use "es-MX", "pt-BR", etc.)
+- All fields are optional with `nil` defaults — existing code requires no changes
+
 ## AWS Setup
 
 ### Prerequisites

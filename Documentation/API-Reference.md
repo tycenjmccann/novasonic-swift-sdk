@@ -216,3 +216,87 @@ enum NovaSonicError: Error {
 | `.rate8kHz` | 8000 | Basic | Poor network |
 | `.rate16kHz` | 16000 | Standard | Default input |
 | `.rate24kHz` | 24000 | High | Best output quality |
+
+## Session Updates (Mid-Session)
+
+### `NovaSonicStreamManager.updateSession(...)`
+
+Sends a `session.update` event to modify pronunciation replacements, language hint, or keyterms on an active streaming session.
+
+```swift
+public func updateSession(
+    replace: [String: String]? = nil,
+    languageHint: String? = nil,
+    keyterms: [String]? = nil
+) async throws
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `replace` | `[String: String]?` | Pronunciation replacement dictionary. Keys are spoken words/phrases, values are phonetic alternatives for TTS. |
+| `languageHint` | `String?` | BCP-47 language code to bias transcription language detection. Bare "es" and "pt" are rejected — use regional variants (e.g., "es-MX", "pt-BR"). |
+| `keyterms` | `[String]?` | Domain-specific vocabulary terms to bias transcription recognition. Maximum 100 terms, each max 50 characters. |
+
+**Throws:**
+- `NovaSonicError.sessionNotActive` — if no active streaming session exists.
+- `NovaSonicError.validationError(String)` — if inputs violate constraints.
+
+**Usage:**
+
+```swift
+// Start session first
+try await manager.startSession()
+
+// Mid-session: update pronunciation and language
+try await manager.updateSession(
+    replace: ["Acme Mobile": "Acme Mobull"],
+    languageHint: "ja",
+    keyterms: ["Acme Mobile", "SomeProductName"]
+)
+
+// Partial update (only keyterms)
+try await manager.updateSession(
+    keyterms: ["Kubernetes", "EKS", "Fargate"]
+)
+```
+
+### Configuration Properties
+
+Three new optional properties on `NovaSonicConfiguration`:
+
+```swift
+let config = NovaSonicConfiguration(
+    // ... existing params ...
+    replace: ["NovaSonic": "Nova Sonic"],  // Pronunciation overrides
+    languageHint: "en-US",                  // Transcription language bias
+    keyterms: ["NovaSonic", "Bedrock"]      // Vocabulary biasing
+)
+```
+
+### Validation Rules
+
+| Field | Rule | Error |
+|-------|------|-------|
+| `keyterms` | Maximum 100 items | `"keyterms contains N items but the maximum is 100"` |
+| `keyterms` | Each item ≤ 50 chars | `"keyterms item at index N is M characters but the maximum is 50"` |
+| `keyterms` | No empty strings | `"keyterms contains an empty string at index N"` |
+| `languageHint` | No bare "es" | `"languageHint 'es' requires a regional variant..."` |
+| `languageHint` | No bare "pt" | `"languageHint 'pt' requires a regional variant..."` |
+| `replace` | Non-empty keys | `"replace dictionary contains an empty key"` |
+| `replace` | Non-empty values | `"replace value for key 'X' is empty"` |
+
+### New Error Cases
+
+| Error | Description | Retryable |
+|-------|-------------|-----------|
+| `.validationError(String)` | Input constraint violation with detail | No |
+| `.sessionNotActive` | No active session for mid-session update | No |
+
+### Replace Semantics
+
+- Replace is a key-value map where keys are the written/spoken text and values are the phonetic pronunciation the TTS engine should use instead.
+- Replace applies only to TTS output — it does not affect transcription.
+- Multiple replacements can be active simultaneously.
+- Pass a new `replace` dictionary to fully replace all active pronunciation overrides.
