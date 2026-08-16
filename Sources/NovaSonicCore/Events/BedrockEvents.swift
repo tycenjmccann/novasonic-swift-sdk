@@ -330,4 +330,35 @@ public struct BedrockEvents {
         }
         """
     }
+
+    // MARK: - Session Update Events
+
+    public static func sessionUpdateEvent(replace: [String: String]?, languageHint: String?, keyterms: [String]?) -> String {
+        var session: [String: Any] = [:]
+        if let replace = replace {
+            session["replace"] = replace
+        }
+        if languageHint != nil || keyterms != nil {
+            var transcription: [String: Any] = [:]
+            if let languageHint = languageHint {
+                transcription["language_hint"] = languageHint
+            }
+            if let keyterms = keyterms {
+                transcription["keyterms"] = keyterms
+            }
+            session["audio"] = [
+                "input": [
+                    "transcription": transcription
+                ]
+            ]
+        }
+        let event: [String: Any] = [
+            "event": [
+                "sessionUpdate": [
+                    "session": session
+                ]
+            ]
+        ]
+        return encodeJSON(event)
+    }
 }

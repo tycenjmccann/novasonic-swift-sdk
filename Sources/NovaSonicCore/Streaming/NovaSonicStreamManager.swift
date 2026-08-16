@@ -342,7 +342,51 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Update session parameters (replace/languageHint/keyterms) during an active session
+    public func updateSession(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+        guard eventStreamContinuation != nil else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+        if let hint = languageHint {
+            let validCodes: Set<String> = ["en","ja","zh","fr","de","hi","ar-EG","ar-SA","ar-AE","bn","id","it","ko","pt-BR","pt-PT","ru","es-MX","es-ES","tr","vi"]
+            guard validCodes.contains(hint) else {
+                throw NovaSonicError.streamingError("Invalid language hint '\(hint)'")
+            }
+        }
+        if let terms = keyterms {
+            guard terms.count <= 100 else {
+                throw NovaSonicError.streamingError("Too many keyterms (\(terms.count)). Maximum is 100.")
+            }
+            for term in terms {
+                guard term.count <= 50 else {
+                    throw NovaSonicError.streamingError("Keyterm '\(term.prefix(20))...' exceeds 50 character limit.")
+                }
+            }
+        }
+        let json = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        try await sendEvent(json, label: "sessionUpdate")
+        NovaSonicLogger.standard("📝 Sent mid-session update")
+    }
+
+    /// Update pronunciation replacements during an active session
+    public func updateSessionReplacements(_ replacements: [String: String]) async throws {
+        try await updateSession(replace: replacements)
+    }
+
+    /// Update the language hint during an active session
+    public func updateLanguageHint(_ hint: String) async throws {
+        try await updateSession(languageHint: hint)
+    }
+
+    /// Update keyterms during an active session
+    public func updateKeyterms(_ terms: [String]) async throws {
+        try await updateSession(keyterms: terms)
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
@@ -528,7 +572,19 @@ public class NovaSonicStreamManager: ObservableObject {
                     yieldEvent(evtJson, label: label)
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
-                
+
+                // Send sessionUpdate event if replace/languageHint/keyterms are configured
+                if configuration!.replace != nil || configuration!.languageHint != nil || configuration!.keyterms != nil {
+                    let sessionUpdateJson = BedrockEvents.sessionUpdateEvent(
+                        replace: configuration!.replace,
+                        languageHint: configuration!.languageHint,
+                        keyterms: configuration!.keyterms
+                    )
+                    yieldEvent(sessionUpdateJson, label: "sessionUpdate")
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    NovaSonicLogger.standard("📝 Sent session update with configured replace/languageHint/keyterms")
+                }
+
                 // Send the audio initialization event.
                 let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz, inputTransport: configuration!.inputTransport)
                 yieldEvent(audioInitEvent, label: "audioContentStart")
@@ -854,7 +910,7 @@ public class NovaSonicStreamManager: ObservableObject {
         if let audioOutput = event["audioOutput"] as? [String: Any],
            let content = audioOutput["content"] as? String,
            let audioData = Data(base64Encoded: content) {
-            
+
             if !isStreaming {
                 return
             }
@@ -871,6 +927,10 @@ public class NovaSonicStreamManager: ObservableObject {
                 try await audioManager.playAudio(audioData)
             }
             #endif
+        }
+
+        if let _ = event["sessionUpdated"] as? [String: Any] {
+            NovaSonicLogger.verbose("✅ Session update acknowledged by server")
         }
     }
     

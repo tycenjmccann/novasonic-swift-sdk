@@ -152,6 +152,34 @@ NovaSonicChatView(
 )
 ```
 
+## Pronunciation Replacements, Language Hint & Keyterms
+
+Improve transcription accuracy with pronunciation replacements, language hints, and key terms:
+
+```swift
+// Configure at session start
+NovaSonicFloatingButton(
+    streamManager: streamManager,
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["AWS": "Amazon Web Services", "K8s": "Kubernetes"],
+    languageHint: "en",
+    keyterms: ["NovaSonic", "Bedrock", "gRPC"]
+)
+
+// Or update mid-session
+try await streamManager.updateSession(
+    replace: ["API": "Application Programming Interface"],
+    languageHint: "ja",
+    keyterms: ["Tokyo", "Osaka"]
+)
+
+// Convenience methods for individual updates
+try await streamManager.updateSessionReplacements(["CEO": "Chief Executive Officer"])
+try await streamManager.updateLanguageHint("fr")
+try await streamManager.updateKeyterms(["Paris", "Lyon", "Marseille"])
+```
+
 ## Chat Persistence
 
 ### One-Line DynamoDB Setup

@@ -209,6 +209,59 @@ enum NovaSonicError: Error {
 }
 ```
 
+## Pronunciation Replacements, Language Hint & Keyterms
+
+Configure pronunciation replacements, language hints, and key terms at startup or update them mid-session.
+
+### Configuration at Startup
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["AWS": "Amazon Web Services", "S3": "Simple Storage Service"],
+    languageHint: "en",
+    keyterms: ["Kubernetes", "PostgreSQL", "gRPC"]
+)
+streamManager.configure(with: config)
+```
+
+Or via the UI components:
+
+```swift
+NovaSonicFloatingButton(
+    streamManager: streamManager,
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["CEO": "Chief Executive Officer"],
+    languageHint: "en",
+    keyterms: ["NovaSonic", "Bedrock"]
+)
+```
+
+### Mid-Session Updates
+
+Update parameters during an active session:
+
+```swift
+// Update all at once
+try await streamManager.updateSession(
+    replace: ["API": "Application Programming Interface"],
+    languageHint: "fr",
+    keyterms: ["microservice", "lambda"]
+)
+
+// Or update individually
+try await streamManager.updateSessionReplacements(["K8s": "Kubernetes"])
+try await streamManager.updateLanguageHint("ja")
+try await streamManager.updateKeyterms(["Tokyo", "Osaka", "Kyoto"])
+```
+
+### Validation Rules
+
+- `languageHint`: Must be one of: `en`, `ja`, `zh`, `fr`, `de`, `hi`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `id`, `it`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
+- `keyterms`: Maximum 100 terms, each term max 50 characters
+
 ## Sample Rates
 
 | Rate | Value | Quality | Use Case |

@@ -50,7 +50,16 @@ public struct NovaSonicConfiguration {
     /// If provided, sends text instead of audio for speakFirst
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
-    
+
+    /// Pronunciation replacements (e.g. ["AWS": "Amazon Web Services"])
+    public let replace: [String: String]?
+
+    /// Language hint for transcription (e.g. "en", "ja", "fr")
+    public let languageHint: String?
+
+    /// Key terms to boost recognition accuracy (max 100, each max 50 chars)
+    public let keyterms: [String]?
+
     // MARK: - Audio Configuration
 
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -114,6 +123,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
@@ -136,6 +148,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
@@ -167,6 +182,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
@@ -191,6 +209,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
@@ -483,6 +504,19 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        if let hint = languageHint {
+            let validLanguageCodes: Set<String> = ["en", "ja", "zh", "fr", "de", "hi", "ar-EG", "ar-SA", "ar-AE", "bn", "id", "it", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
+            guard validLanguageCodes.contains(hint) else {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+        if let terms = keyterms {
+            guard terms.count <= 100 else { throw NovaSonicError.invalidConfiguration }
+            for term in terms {
+                guard term.count <= 50 else { throw NovaSonicError.invalidConfiguration }
+            }
         }
     }
 }
