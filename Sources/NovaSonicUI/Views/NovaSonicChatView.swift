@@ -39,7 +39,16 @@ public struct NovaSonicChatView: View {
     public let dynamoDBRegion: String
     public let awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)?
     public let logLevel: NovaSonicLogLevel
-    
+
+    /// Pronunciation replacement dictionary for session configuration.
+    public let replace: [String: String]?
+
+    /// Language hint for transcription bias.
+    public let languageHint: LanguageCode?
+
+    /// Key terms for transcription accuracy.
+    public let keyterms: [String]?
+
     /// Tools to register with the system
     public let tools: [NovaSonicTool.Type]
     
@@ -82,6 +91,9 @@ public struct NovaSonicChatView: View {
         dynamoDBRegion: String = "us-east-1",
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
         logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: LanguageCode? = nil,
+        keyterms: [String]? = nil,
         tools: [NovaSonicTool.Type] = [],
         showVoiceSelector: Bool = false,
         showConversationHistory: Bool = false,
@@ -106,6 +118,9 @@ public struct NovaSonicChatView: View {
         self.dynamoDBRegion = dynamoDBRegion
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.tools = tools
         self.showVoiceSelector = showVoiceSelector
         self.showConversationHistory = showConversationHistory
@@ -625,9 +640,18 @@ public struct NovaSonicChatView: View {
             dynamoDBUserId: dynamoDBUserId,
             dynamoDBRegion: dynamoDBRegion,
             awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-            logLevel: logLevel
+            logLevel: logLevel,
+            replace: replace,
+            transcriptionConfig: {
+                do {
+                    return try TranscriptionConfig(languageHint: languageHint, keyterms: keyterms)
+                } catch {
+                    NovaSonicLogger.error("Invalid transcription config: \(error)")
+                    return nil
+                }
+            }()
         )
-        
+
         // Apply the updated configuration
         streamManager.configure(with: newConfig)
         NovaSonicLogger.standard("Voice changed to: \(selectedVoice.displayName)")
@@ -663,9 +687,18 @@ public struct NovaSonicChatView: View {
                 dynamoDBUserId: dynamoDBUserId,
                 dynamoDBRegion: dynamoDBRegion,
                 awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-                logLevel: logLevel
+                logLevel: logLevel,
+                replace: replace,
+                transcriptionConfig: {
+                    do {
+                        return try TranscriptionConfig(languageHint: languageHint, keyterms: keyterms)
+                    } catch {
+                        NovaSonicLogger.error("Invalid transcription config: \(error)")
+                        return nil
+                    }
+                }()
             )
-            
+
             streamManager.configure(with: configuration)
         } else {
             NovaSonicLogger.verbose("NovaSonicChatView: Stream manager already configured, skipping")

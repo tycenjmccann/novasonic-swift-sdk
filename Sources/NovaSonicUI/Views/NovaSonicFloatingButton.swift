@@ -46,7 +46,16 @@ public struct NovaSonicFloatingButton: View {
     public let dynamoDBRegion: String
     public let awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)?
     public let logLevel: NovaSonicLogLevel
-    
+
+    /// Pronunciation replacement dictionary for session configuration.
+    public let replace: [String: String]?
+
+    /// Language hint for transcription bias.
+    public let languageHint: LanguageCode?
+
+    /// Key terms for transcription accuracy.
+    public let keyterms: [String]?
+
     /// Tools to register with the system
     public let tools: [NovaSonicTool.Type]
     
@@ -85,6 +94,9 @@ public struct NovaSonicFloatingButton: View {
         dynamoDBRegion: String = "us-east-1",
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
         logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: LanguageCode? = nil,
+        keyterms: [String]? = nil,
         tools: [NovaSonicTool.Type] = [],
         position: NovaSonicFloatingPosition = .bottomRight,
         speakFirst: Bool = false,
@@ -108,6 +120,9 @@ public struct NovaSonicFloatingButton: View {
         self.dynamoDBRegion = dynamoDBRegion
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.tools = tools
         self.position = position
         self.speakFirst = speakFirst
@@ -460,9 +475,18 @@ public struct NovaSonicFloatingButton: View {
                 dynamoDBUserId: dynamoDBUserId,
                 dynamoDBRegion: dynamoDBRegion,
                 awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-                logLevel: logLevel
+                logLevel: logLevel,
+                replace: replace,
+                transcriptionConfig: {
+                    do {
+                        return try TranscriptionConfig(languageHint: languageHint, keyterms: keyterms)
+                    } catch {
+                        NovaSonicLogger.error("Invalid transcription config: \(error)")
+                        return nil
+                    }
+                }()
             )
-            
+
             streamManager.configure(with: configuration)
         } else {
             NovaSonicLogger.verbose("NovaSonicFloatingButton: Stream manager already configured, skipping")

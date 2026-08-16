@@ -494,7 +494,19 @@ public class NovaSonicStreamManager: ObservableObject {
                     textInitEvents.append((BedrockEvents.paralinguisticTextInputEvent(promptName: promptName, contentName: paraContentName), "paralinguisticTextInput"))
                     textInitEvents.append((BedrockEvents.contentEndEvent(promptName: promptName, contentName: paraContentName), "paralinguisticContentEnd"))
                 }
-                
+
+                // Send session.update if any transcription/replace config is provided
+                if configuration?.replace != nil ||
+                   configuration?.transcriptionConfig?.languageHint != nil ||
+                   configuration?.transcriptionConfig?.keyterms != nil {
+                    let sessionUpdateJson = BedrockEvents.sessionUpdateEvent(
+                        replace: configuration?.replace,
+                        languageHint: configuration?.transcriptionConfig?.languageHint,
+                        keyterms: configuration?.transcriptionConfig?.keyterms
+                    )
+                    textInitEvents.append((sessionUpdateJson, "sessionUpdate"))
+                }
+
                 // Send text initialization events for RESUMING CHATS from chat history
                 if case .resume(let previousTurns) = calledMode {
                     NovaSonicLogger.verbose("🔄 Resuming conversation with \(previousTurns.count) previous turns")
@@ -745,6 +757,22 @@ public class NovaSonicStreamManager: ObservableObject {
     }
     
     private func handleEvent(_ event: [String: Any]) async {
+        // Handle session.updated acknowledgment
+        if let eventType = event["type"] as? String, eventType == "session.updated" {
+            let sessionId = event["session_id"] as? String
+            let timestamp = event["timestamp"] as? String
+            let success = event["success"] as? Bool ?? true
+            let errorMessage = event["error_message"] as? String
+            let response = SessionUpdatedResponse(
+                sessionId: sessionId,
+                timestamp: timestamp,
+                success: success,
+                errorMessage: errorMessage
+            )
+            handleSessionUpdated(response)
+            return
+        }
+
         // Handle different event types
         if let contentStart = event["contentStart"] as? [String: Any] {
             if let contentId = contentStart["contentId"] as? String {
@@ -874,6 +902,15 @@ public class NovaSonicStreamManager: ObservableObject {
         }
     }
     
+    private func handleSessionUpdated(_ response: SessionUpdatedResponse) {
+        if !response.success, let error = response.errorMessage {
+            self.lastError = NovaSonicError.sessionUpdateFailed(error)
+            NovaSonicLogger.error("❌ Session update failed: \(error)")
+        } else {
+            NovaSonicLogger.standard("✅ Session update applied successfully")
+        }
+    }
+
     // MARK: - Message Management
     private func appendMessage(_ text: String, role: String, isSpeculative: Bool) {
         let isUser = role.uppercased() == "USER"
@@ -1204,4 +1241,84 @@ public extension NovaSonicStreamDelegate {
     func didReceiveTextResponse(_ text: String) {}
     func didReceiveToolCall(_ toolName: String, parameters: [String: Any], toolUseId: String) {}
     func didEncounterError(_ error: NovaSonicError) {}
+}
+
+// MARK: - Mid-Session Updates
+
+extension NovaSonicStreamManager {
+    /// Updates pronunciation replacements mid-session.
+    ///
+    /// - Parameter replacements: Dictionary mapping original text to pronunciation replacements.
+    ///   Pass an empty dictionary `[:]` to clear all replacements.
+    /// - Throws: ``SessionUpdateValidationError`` if the dictionary is invalid,
+    ///   or ``NovaSonicError`` if not currently streaming.
+    public func updateReplace(_ replacements: [String: String]) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - not streaming")
+        }
+        try validateReplace(replacements)
+        let event = BedrockEvents.sessionUpdateEvent(replace: replacements)
+        try await sendEvent(event, label: "session.update:replace")
+    }
+
+    /// Updates the language hint mid-session.
+    ///
+    /// - Parameter languageHint: BCP-47 language code for transcription bias.
+    ///   Pass `nil` to remove the language bias.
+    /// - Throws: ``NovaSonicError`` if not currently streaming.
+    public func updateLanguageHint(_ languageHint: LanguageCode?) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - not streaming")
+        }
+        let event = BedrockEvents.sessionUpdateEvent(languageHint: languageHint)
+        try await sendEvent(event, label: "session.update:languageHint")
+    }
+
+    /// Updates keyterms mid-session.
+    ///
+    /// - Parameter keyterms: Array of key terms for transcription accuracy (max 100, each max 50 chars).
+    ///   Pass `nil` or `[]` to clear keyterms.
+    /// - Throws: ``SessionUpdateValidationError`` if keyterms exceed limits,
+    ///   or ``NovaSonicError`` if not currently streaming.
+    public func updateKeyterms(_ keyterms: [String]?) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - not streaming")
+        }
+        if let terms = keyterms, !terms.isEmpty {
+            _ = try TranscriptionConfig(keyterms: terms)
+        }
+        let event = BedrockEvents.sessionUpdateEvent(keyterms: keyterms)
+        try await sendEvent(event, label: "session.update:keyterms")
+    }
+
+    /// Updates multiple session parameters at once in a single WebSocket message.
+    ///
+    /// - Parameters:
+    ///   - replace: Optional pronunciation replacement dictionary.
+    ///   - languageHint: Optional BCP-47 language code.
+    ///   - keyterms: Optional keyterms array.
+    /// - Throws: ``SessionUpdateValidationError`` if any parameter is invalid,
+    ///   or ``NovaSonicError`` if not currently streaming.
+    public func updateSession(
+        replace: [String: String]? = nil,
+        languageHint: LanguageCode? = nil,
+        keyterms: [String]? = nil
+    ) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - not streaming")
+        }
+        if let replace = replace {
+            try validateReplace(replace)
+        }
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            _ = try TranscriptionConfig(keyterms: keyterms)
+        }
+
+        let event = BedrockEvents.sessionUpdateEvent(
+            replace: replace,
+            languageHint: languageHint,
+            keyterms: keyterms
+        )
+        try await sendEvent(event, label: "session.update")
+    }
 }

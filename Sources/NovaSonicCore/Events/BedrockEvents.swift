@@ -307,6 +307,49 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    /// Creates a session.update event JSON string for sending via WebSocket.
+    ///
+    /// All parameters are optional; only non-nil values are included in the event payload.
+    ///
+    /// - Parameters:
+    ///   - replace: Pronunciation replacement dictionary.
+    ///   - languageHint: BCP-47 language code for transcription bias.
+    ///   - keyterms: Array of key terms for transcription accuracy.
+    /// - Returns: JSON string for the session.update event.
+    public static func sessionUpdateEvent(
+        replace: [String: String]? = nil,
+        languageHint: LanguageCode? = nil,
+        keyterms: [String]? = nil
+    ) -> String {
+        var sessionConfig: [String: Any] = [:]
+
+        if let replace = replace {
+            sessionConfig["replace"] = replace
+        }
+
+        var transcriptionConfig: [String: Any] = [:]
+        if let languageHint = languageHint {
+            transcriptionConfig["language_hint"] = languageHint.rawValue
+        }
+        if let keyterms = keyterms {
+            transcriptionConfig["keyterms"] = keyterms
+        }
+        if !transcriptionConfig.isEmpty {
+            sessionConfig["transcription_config"] = transcriptionConfig
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "type": "session.update",
+                "session_config": sessionConfig
+            ]
+        ]
+
+        return encodeJSON(event)
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

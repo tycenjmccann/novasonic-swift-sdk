@@ -158,3 +158,251 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+/// Tests for session update features: replace, languageHint, keyterms (TEAM-2466)
+final class SessionUpdateConfigurationTests: XCTestCase {
+
+    // MARK: - LanguageCode Tests
+
+    func testLanguageCodeRawValues() {
+        XCTAssertEqual(LanguageCode.en_US.rawValue, "en-US")
+        XCTAssertEqual(LanguageCode.es_MX.rawValue, "es-MX")
+        XCTAssertEqual(LanguageCode.pt_BR.rawValue, "pt-BR")
+        XCTAssertEqual(LanguageCode.pt_PT.rawValue, "pt-PT")
+        XCTAssertEqual(LanguageCode.es_ES.rawValue, "es-ES")
+    }
+
+    func testLanguageCodeTagProperty() {
+        XCTAssertEqual(LanguageCode.fr.tag, "fr")
+        XCTAssertEqual(LanguageCode.ja.tag, "ja")
+        XCTAssertEqual(LanguageCode.en.tag, "en")
+    }
+
+    func testNoBareSPanishOrPortuguese() {
+        // Ensure no bare "es" or "pt" case exists (structural enforcement)
+        let allCodes = LanguageCode.allCases.map { $0.rawValue }
+        XCTAssertFalse(allCodes.contains("es"), "Bare 'es' must not exist - use es-MX or es-ES")
+        XCTAssertFalse(allCodes.contains("pt"), "Bare 'pt' must not exist - use pt-BR or pt-PT")
+    }
+
+    func testLanguageCodeCaseIterable() {
+        // Verify all expected codes are present
+        XCTAssertTrue(LanguageCode.allCases.count >= 20)
+        XCTAssertTrue(LanguageCode.allCases.contains(.en_US))
+        XCTAssertTrue(LanguageCode.allCases.contains(.es_MX))
+        XCTAssertTrue(LanguageCode.allCases.contains(.pt_BR))
+    }
+
+    // MARK: - TranscriptionConfig Validation Tests
+
+    func testTranscriptionConfigValidCreation() {
+        XCTAssertNoThrow(try TranscriptionConfig(languageHint: .en_US, keyterms: ["NovaSonic", "Bedrock"]))
+    }
+
+    func testTranscriptionConfigNilDefaults() {
+        let config = try! TranscriptionConfig()
+        XCTAssertNil(config.languageHint)
+        XCTAssertNil(config.keyterms)
+    }
+
+    func testKeytermCountExceeded() {
+        let terms = (0..<101).map { "term\($0)" }
+        XCTAssertThrowsError(try TranscriptionConfig(keyterms: terms)) { error in
+            guard let validationError = error as? SessionUpdateValidationError else {
+                XCTFail("Expected SessionUpdateValidationError"); return
+            }
+            if case .keytermCountExceeded(let count) = validationError {
+                XCTAssertEqual(count, 101)
+            } else {
+                XCTFail("Expected keytermCountExceeded, got \(validationError)")
+            }
+        }
+    }
+
+    func testKeytermLengthExceeded() {
+        let longTerm = String(repeating: "a", count: 51)
+        XCTAssertThrowsError(try TranscriptionConfig(keyterms: [longTerm])) { error in
+            guard let validationError = error as? SessionUpdateValidationError else {
+                XCTFail("Expected SessionUpdateValidationError"); return
+            }
+            if case .keytermLengthExceeded(_, let length) = validationError {
+                XCTAssertEqual(length, 51)
+            } else {
+                XCTFail("Expected keytermLengthExceeded, got \(validationError)")
+            }
+        }
+    }
+
+    func testEmptyKeytermRejected() {
+        XCTAssertThrowsError(try TranscriptionConfig(keyterms: ["valid", ""])) { error in
+            guard let validationError = error as? SessionUpdateValidationError else {
+                XCTFail("Expected SessionUpdateValidationError"); return
+            }
+            if case .emptyKeyterm = validationError {
+                // pass
+            } else {
+                XCTFail("Expected emptyKeyterm, got \(validationError)")
+            }
+        }
+    }
+
+    func testMaximum100KeytermsAccepted() {
+        let terms = (0..<100).map { "term\($0)" }
+        XCTAssertNoThrow(try TranscriptionConfig(keyterms: terms))
+    }
+
+    func test50CharTermAccepted() {
+        let term = String(repeating: "a", count: 50)
+        XCTAssertNoThrow(try TranscriptionConfig(keyterms: [term]))
+    }
+
+    // MARK: - Replace Validation Tests
+
+    func testValidateReplaceSuccess() {
+        XCTAssertNoThrow(try validateReplace(["AWS": "Amazon Web Services", "SDK": "S.D.K."]))
+    }
+
+    func testValidateReplaceEmptyDict() {
+        XCTAssertNoThrow(try validateReplace([:]))
+    }
+
+    func testValidateReplaceEmptyKeyRejected() {
+        XCTAssertThrowsError(try validateReplace(["": "something"])) { error in
+            guard let validationError = error as? SessionUpdateValidationError else {
+                XCTFail("Expected SessionUpdateValidationError"); return
+            }
+            if case .emptyReplacementKey = validationError {
+                // pass
+            } else {
+                XCTFail("Expected emptyReplacementKey, got \(validationError)")
+            }
+        }
+    }
+
+    func testValidateReplaceCountExceeded() {
+        var dict: [String: String] = [:]
+        for i in 0..<201 {
+            dict["key\(i)"] = "value\(i)"
+        }
+        XCTAssertThrowsError(try validateReplace(dict)) { error in
+            guard let validationError = error as? SessionUpdateValidationError else {
+                XCTFail("Expected SessionUpdateValidationError"); return
+            }
+            if case .replacementCountExceeded(let count) = validationError {
+                XCTAssertEqual(count, 201)
+            } else {
+                XCTFail("Expected replacementCountExceeded, got \(validationError)")
+            }
+        }
+    }
+
+    func testMax200ReplacementsAccepted() {
+        var dict: [String: String] = [:]
+        for i in 0..<200 {
+            dict["key\(i)"] = "value\(i)"
+        }
+        XCTAssertNoThrow(try validateReplace(dict))
+    }
+
+    // MARK: - NovaSonicConfiguration Integration Tests
+
+    func testConfigurationWithReplaceProperty() {
+        let config = NovaSonicConfiguration(replace: ["AWS": "Amazon Web Services"])
+        XCTAssertEqual(config.replace?["AWS"], "Amazon Web Services")
+    }
+
+    func testConfigurationReplaceDefaultsToNil() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.replace)
+    }
+
+    func testConfigurationWithTranscriptionConfig() throws {
+        let txConfig = try TranscriptionConfig(languageHint: .es_MX, keyterms: ["NovaSonic"])
+        let config = NovaSonicConfiguration(transcriptionConfig: txConfig)
+        XCTAssertEqual(config.languageHint, .es_MX)
+        XCTAssertEqual(config.keyterms, ["NovaSonic"])
+    }
+
+    func testConfigurationTranscriptionConfigDefaultsToNil() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.transcriptionConfig)
+        XCTAssertNil(config.languageHint)
+        XCTAssertNil(config.keyterms)
+    }
+
+    // MARK: - BedrockEvents.sessionUpdateEvent Tests
+
+    func testSessionUpdateEventWithReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["AWS": "Amazon Web Services"])
+        XCTAssertTrue(json.contains("session.update"))
+        XCTAssertTrue(json.contains("session_config"))
+        XCTAssertTrue(json.contains("replace"))
+        XCTAssertTrue(json.contains("Amazon Web Services"))
+    }
+
+    func testSessionUpdateEventWithLanguageHint() {
+        let json = BedrockEvents.sessionUpdateEvent(languageHint: .en_US)
+        XCTAssertTrue(json.contains("session.update"))
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("en-US"))
+        XCTAssertTrue(json.contains("transcription_config"))
+    }
+
+    func testSessionUpdateEventWithKeyterms() {
+        let json = BedrockEvents.sessionUpdateEvent(keyterms: ["NovaSonic", "Bedrock"])
+        XCTAssertTrue(json.contains("session.update"))
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("NovaSonic"))
+        XCTAssertTrue(json.contains("Bedrock"))
+    }
+
+    func testSessionUpdateEventCombined() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            replace: ["SDK": "S.D.K."],
+            languageHint: .fr,
+            keyterms: ["transcription"]
+        )
+        XCTAssertTrue(json.contains("replace"))
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("S.D.K."))
+        XCTAssertTrue(json.contains("\"fr\""))
+        XCTAssertTrue(json.contains("transcription"))
+    }
+
+    func testSessionUpdateEventEmptyReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: [:])
+        // Empty dict should still include the "replace" key
+        XCTAssertTrue(json.contains("replace"))
+    }
+
+    func testSessionUpdateEventOmitsNilFields() {
+        let json = BedrockEvents.sessionUpdateEvent(languageHint: .ja)
+        XCTAssertFalse(json.contains("replace"))
+        XCTAssertFalse(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("language_hint"))
+    }
+
+    // MARK: - SessionUpdatedResponse Tests
+
+    func testSessionUpdatedResponseModel() {
+        let response = SessionUpdatedResponse(sessionId: "sess-123", timestamp: "2024-01-01", success: true, errorMessage: nil)
+        XCTAssertEqual(response.sessionId, "sess-123")
+        XCTAssertTrue(response.success)
+        XCTAssertNil(response.errorMessage)
+    }
+
+    func testSessionUpdatedResponseFailure() {
+        let response = SessionUpdatedResponse(sessionId: nil, timestamp: nil, success: false, errorMessage: "Invalid language code")
+        XCTAssertFalse(response.success)
+        XCTAssertEqual(response.errorMessage, "Invalid language code")
+    }
+
+    func testSessionUpdatedResponseDefaults() {
+        let response = SessionUpdatedResponse()
+        XCTAssertNil(response.sessionId)
+        XCTAssertNil(response.timestamp)
+        XCTAssertTrue(response.success)
+        XCTAssertNil(response.errorMessage)
+    }
+}

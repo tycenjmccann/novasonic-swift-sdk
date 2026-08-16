@@ -4,6 +4,121 @@ import SmithyIdentity
 import AVFoundation
 #endif
 
+// MARK: - Session Update Types
+
+/// BCP-47 validated language codes supported by NovaSonic transcription.
+///
+/// Regional variants are required for Spanish and Portuguese.
+/// Use ``LanguageCode/es_MX`` or ``LanguageCode/es_ES`` instead of a bare `es` code,
+/// and ``LanguageCode/pt_BR`` or ``LanguageCode/pt_PT`` instead of bare `pt`.
+public enum LanguageCode: String, Sendable, Codable, CaseIterable {
+    case en = "en"
+    case en_US = "en-US"
+    case en_GB = "en-GB"
+    case en_AU = "en-AU"
+    case es_MX = "es-MX"
+    case es_ES = "es-ES"
+    case fr = "fr"
+    case fr_CA = "fr-CA"
+    case de = "de"
+    case it = "it"
+    case ja = "ja"
+    case ko = "ko"
+    case pt_BR = "pt-BR"
+    case pt_PT = "pt-PT"
+    case zh = "zh"
+    case zh_TW = "zh-TW"
+    case hi = "hi"
+    case ar = "ar"
+    case nl = "nl"
+    case ru = "ru"
+
+    /// The BCP-47 language tag string.
+    public var tag: String { rawValue }
+}
+
+/// Errors thrown when session update parameters fail validation.
+public enum SessionUpdateValidationError: Error, Sendable, CustomStringConvertible {
+    /// Keyterms array exceeds the maximum of 100 entries.
+    case keytermCountExceeded(count: Int)
+    /// A single keyterm exceeds the maximum of 50 characters.
+    case keytermLengthExceeded(term: String, length: Int)
+    /// A keyterm is an empty string.
+    case emptyKeyterm
+    /// The replacement dictionary contains an empty key.
+    case emptyReplacementKey
+    /// The replacement dictionary exceeds the maximum of 200 entries.
+    case replacementCountExceeded(count: Int)
+
+    public var description: String {
+        switch self {
+        case .keytermCountExceeded(let count):
+            return "Keyterms count \(count) exceeds maximum of 100"
+        case .keytermLengthExceeded(let term, let length):
+            return "Keyterm '\(term)' length \(length) exceeds maximum of 50 characters"
+        case .emptyKeyterm:
+            return "Keyterms array contains an empty string"
+        case .emptyReplacementKey:
+            return "Replacement dictionary contains an empty key"
+        case .replacementCountExceeded(let count):
+            return "Replacement dictionary count \(count) exceeds maximum of 200"
+        }
+    }
+}
+
+/// Configuration for transcription behavior including language hint and key terms.
+///
+/// Validates that keyterms do not exceed 100 entries and each term is at most 50 characters.
+public struct TranscriptionConfig: Sendable {
+    /// BCP-47 language code to bias transcription towards.
+    public let languageHint: LanguageCode?
+    /// Key terms to improve transcription accuracy. Max 100 terms, each max 50 characters.
+    public let keyterms: [String]?
+
+    /// Creates a validated transcription configuration.
+    ///
+    /// - Parameters:
+    ///   - languageHint: Optional BCP-47 language code for transcription bias.
+    ///   - keyterms: Optional array of key terms (max 100, each max 50 chars).
+    /// - Throws: ``SessionUpdateValidationError`` if keyterms exceed limits.
+    public init(
+        languageHint: LanguageCode? = nil,
+        keyterms: [String]? = nil
+    ) throws {
+        if let terms = keyterms {
+            guard terms.count <= 100 else {
+                throw SessionUpdateValidationError.keytermCountExceeded(count: terms.count)
+            }
+            for term in terms {
+                guard term.count <= 50 else {
+                    throw SessionUpdateValidationError.keytermLengthExceeded(
+                        term: term,
+                        length: term.count
+                    )
+                }
+            }
+            guard !terms.contains(where: { $0.isEmpty }) else {
+                throw SessionUpdateValidationError.emptyKeyterm
+            }
+        }
+        self.languageHint = languageHint
+        self.keyterms = keyterms
+    }
+}
+
+/// Validates a pronunciation replacement dictionary.
+///
+/// - Parameter replacements: The dictionary to validate.
+/// - Throws: ``SessionUpdateValidationError`` if constraints are violated.
+public func validateReplace(_ replacements: [String: String]) throws {
+    guard replacements.count <= 200 else {
+        throw SessionUpdateValidationError.replacementCountExceeded(count: replacements.count)
+    }
+    guard !replacements.keys.contains(where: { $0.isEmpty }) else {
+        throw SessionUpdateValidationError.emptyReplacementKey
+    }
+}
+
 /// Audio transport mode for WebSocket communication
 public enum AudioTransportMode: String, CaseIterable {
     case json = "json"       // Default: base64-encoded audio in JSON events
@@ -100,7 +215,15 @@ public struct NovaSonicConfiguration {
     
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
-    
+
+    // MARK: - Session Update Configuration
+
+    /// Pronunciation replacement dictionary for TTS output.
+    public let replace: [String: String]?
+
+    /// Transcription configuration (language hint + keyterms).
+    public let transcriptionConfig: TranscriptionConfig?
+
     // MARK: - Initialization
     
     public init(
@@ -124,7 +247,9 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        transcriptionConfig: TranscriptionConfig? = nil
     ) {
         self.region = region
         self.model = model
@@ -147,13 +272,15 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace
+        self.transcriptionConfig = transcriptionConfig
 
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
         #endif
     }
-    
+
     #if IOS_AUDIO
     /// Full initialization with iOS audio session control
     public init(
@@ -179,7 +306,9 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        transcriptionConfig: TranscriptionConfig? = nil
     ) {
         self.region = region
         self.model = model
@@ -204,6 +333,8 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace
+        self.transcriptionConfig = transcriptionConfig
     }
     #endif
 }
@@ -426,7 +557,15 @@ public enum NovaSonicSampleRate: Int, CaseIterable {
 // MARK: - Convenience Extensions
 
 extension NovaSonicConfiguration {
-    
+    /// Language hint for transcription bias.
+    public var languageHint: LanguageCode? { transcriptionConfig?.languageHint }
+
+    /// Key terms for transcription accuracy.
+    public var keyterms: [String]? { transcriptionConfig?.keyterms }
+}
+
+extension NovaSonicConfiguration {
+
     /// Voice Options
     
     /// - `.matthew` - US English, masculine

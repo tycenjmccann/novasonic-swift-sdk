@@ -12,6 +12,7 @@ public enum NovaResponseEvent {
     case contentEnd(ContentEndResponse)
     case completionEnd(CompletionEndEvent)
     case error(ErrorResponse)
+    case sessionUpdated(SessionUpdatedResponse)
 }
 
 // MARK: - Event Response Models
@@ -293,12 +294,33 @@ public struct EventParser {
         guard let message = data["message"] as? String else {
             return nil
         }
-        
+
         let event = ErrorResponse(
             message: message,
             code: data["code"] as? String,
             type: data["type"] as? String
         )
         return .error(event)
+    }
+}
+
+// MARK: - Session Update Response
+
+/// Response received when a session.update event is acknowledged by the server.
+public struct SessionUpdatedResponse: Sendable {
+    /// The session ID that was updated.
+    public let sessionId: String?
+    /// Timestamp of the update acknowledgment.
+    public let timestamp: String?
+    /// Whether the update was applied successfully.
+    public let success: Bool
+    /// Error message if the update failed server-side.
+    public let errorMessage: String?
+
+    public init(sessionId: String? = nil, timestamp: String? = nil, success: Bool = true, errorMessage: String? = nil) {
+        self.sessionId = sessionId
+        self.timestamp = timestamp
+        self.success = success
+        self.errorMessage = errorMessage
     }
 }
