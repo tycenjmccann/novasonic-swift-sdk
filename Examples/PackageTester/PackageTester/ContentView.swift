@@ -49,7 +49,10 @@ struct ContentView: View {
                 speakFirst: false,              // Whether Nova Sonic speaks first
                 onStateChange: { isStreaming in
                     // Handle streaming state changes
-                }
+                },
+                replace: ["NovaSonic": "Nova Sonic", "Acme": "Acme Mobull"],
+                languageHint: "en-US",
+                keyterms: ["Kubernetes", "SwiftUI", "NovaSonic"]
             )
             
             VStack(spacing: 10) {
@@ -81,7 +84,10 @@ struct ContentView: View {
             dynamoDBRegion: "us-east-1",
             tools: [ChangeMyHeartTool.self],   // Custom tools to register
             showConversationHistory: true,
-            speakFirst: false
+            speakFirst: false,
+            replace: ["AWS": "A.W.S."],
+            languageHint: "es",
+            keyterms: ["DynamoDB", "CloudFormation", "Lambda"]
 
         )
         .presentationDetents([.medium, .large])

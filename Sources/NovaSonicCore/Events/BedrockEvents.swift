@@ -24,8 +24,41 @@ public struct BedrockEvents {
 
     // MARK: - Initialization Events
 
-    public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil) -> String {
-        return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
+    public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil, replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) -> String {
+        return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity, replace: replace, languageHint: languageHint, keyterms: keyterms).buildEvent()
+    }
+
+    /// Builds a session.update event for mid-session configuration changes.
+    /// Only non-nil fields are included in the payload (partial update semantics).
+    public static func sessionUpdateEvent(
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
+    ) -> String {
+        var session: [String: Any] = [:]
+
+        if let replace = replace, !replace.isEmpty {
+            session["replace"] = replace
+        }
+
+        var transcription: [String: Any] = [:]
+        if let languageHint = languageHint {
+            transcription["language_hint"] = languageHint
+        }
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            transcription["keyterms"] = keyterms
+        }
+        if !transcription.isEmpty {
+            session["audio"] = ["input": ["transcription": transcription]]
+        }
+
+        guard !session.isEmpty else { return "{}" }
+
+        let event: [String: Any] = [
+            "type": "session.update",
+            "session": session
+        ]
+        return encodeJSON(event)
     }
 
     public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {

@@ -55,7 +55,11 @@ public struct NovaSonicFloatingButton: View {
     
     /// Optional callback for state changes
     public let onStateChange: ((Bool) -> Void)?
-    
+
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
+
     /// Whether Nova Sonic should speak first (send initial audio prompt)
     public let speakFirst: Bool
     
@@ -88,7 +92,10 @@ public struct NovaSonicFloatingButton: View {
         tools: [NovaSonicTool.Type] = [],
         position: NovaSonicFloatingPosition = .bottomRight,
         speakFirst: Bool = false,
-        onStateChange: ((Bool) -> Void)? = nil
+        onStateChange: ((Bool) -> Void)? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.streamManager = streamManager
         self.model = model
@@ -112,6 +119,9 @@ public struct NovaSonicFloatingButton: View {
         self.position = position
         self.speakFirst = speakFirst
         self.onStateChange = onStateChange
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
     }
     
     // MARK: - Convenience Initializers
@@ -460,7 +470,10 @@ public struct NovaSonicFloatingButton: View {
                 dynamoDBUserId: dynamoDBUserId,
                 dynamoDBRegion: dynamoDBRegion,
                 awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-                logLevel: logLevel
+                logLevel: logLevel,
+                replace: replace,
+                languageHint: languageHint,
+                keyterms: keyterms
             )
             
             streamManager.configure(with: configuration)

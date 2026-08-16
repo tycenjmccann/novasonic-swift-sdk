@@ -51,6 +51,10 @@ public struct NovaSonicChatView: View {
     
     /// Whether Nova Sonic should speak first (send initial audio prompt)
     public let speakFirst: Bool
+
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
     
     // MARK: - State
     
@@ -85,7 +89,10 @@ public struct NovaSonicChatView: View {
         tools: [NovaSonicTool.Type] = [],
         showVoiceSelector: Bool = false,
         showConversationHistory: Bool = false,
-        speakFirst: Bool = false
+        speakFirst: Bool = false,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.streamManager = streamManager
         self.model = model
@@ -111,6 +118,9 @@ public struct NovaSonicChatView: View {
         self.showConversationHistory = showConversationHistory
         self.speakFirst = speakFirst
         self._selectedVoice = State(initialValue: voice)
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
     }
     
     // MARK: - Convenience Initializers
@@ -625,9 +635,12 @@ public struct NovaSonicChatView: View {
             dynamoDBUserId: dynamoDBUserId,
             dynamoDBRegion: dynamoDBRegion,
             awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-            logLevel: logLevel
+            logLevel: logLevel,
+            replace: replace,
+            languageHint: languageHint,
+            keyterms: keyterms
         )
-        
+
         // Apply the updated configuration
         streamManager.configure(with: newConfig)
         NovaSonicLogger.standard("Voice changed to: \(selectedVoice.displayName)")
@@ -663,9 +676,12 @@ public struct NovaSonicChatView: View {
                 dynamoDBUserId: dynamoDBUserId,
                 dynamoDBRegion: dynamoDBRegion,
                 awsCredentialIdentityResolver: awsCredentialIdentityResolver,
-                logLevel: logLevel
+                logLevel: logLevel,
+                replace: replace,
+                languageHint: languageHint,
+                keyterms: keyterms
             )
-            
+
             streamManager.configure(with: configuration)
         } else {
             NovaSonicLogger.verbose("NovaSonicChatView: Stream manager already configured, skipping")

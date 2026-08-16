@@ -88,7 +88,23 @@ public struct NovaSonicConfiguration {
     
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
-    
+
+    // MARK: - Transcription Configuration
+
+    /// Dictionary mapping display text to phonetic pronunciation replacements.
+    /// Keys are the original text; values are the desired pronunciation.
+    /// Empty dictionary is treated as nil (omitted from JSON).
+    public let replace: [String: String]?
+
+    /// BCP-47 language hint for input audio transcription (e.g., "ja", "en-US").
+    /// Improves transcription accuracy for non-English or mixed-language input.
+    public let languageHint: String?
+
+    /// Domain-specific terms to boost transcription accuracy.
+    /// Maximum 100 items, each maximum 50 characters.
+    /// Empty array is treated as nil (omitted from JSON).
+    public let keyterms: [String]?
+
     // MARK: - Initialization
     
     public init(
@@ -110,7 +126,10 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.region = region
         self.model = model
@@ -131,7 +150,10 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+        self.replace = replace?.isEmpty == true ? nil : replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms?.isEmpty == true ? nil : keyterms
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -161,7 +183,10 @@ public struct NovaSonicConfiguration {
         dynamoDBUserId: String? = nil,
         dynamoDBRegion: String? = nil,
         awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)? = nil,
-        logLevel: NovaSonicLogLevel = .standard
+        logLevel: NovaSonicLogLevel = .standard,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
     ) {
         self.region = region
         self.model = model
@@ -184,6 +209,9 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
+        self.replace = replace?.isEmpty == true ? nil : replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms?.isEmpty == true ? nil : keyterms
     }
     #endif
 }
@@ -463,6 +491,41 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Keyterms validation
+        if let keyterms = keyterms {
+            if keyterms.count > 100 {
+                throw NovaSonicError.invalidConfiguration
+            }
+            for term in keyterms {
+                if term.count > 50 {
+                    throw NovaSonicError.invalidConfiguration
+                }
+                if term.trimmingCharacters(in: .whitespaces).isEmpty {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
+        }
+
+        // Language hint validation (BCP-47 format, basic check)
+        if let languageHint = languageHint {
+            let bcp47Pattern = #"^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"#
+            if languageHint.range(of: bcp47Pattern, options: .regularExpression) == nil {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // Replace dictionary validation
+        if let replace = replace {
+            for (key, value) in replace {
+                if key.trimmingCharacters(in: .whitespaces).isEmpty {
+                    throw NovaSonicError.invalidConfiguration
+                }
+                if value.trimmingCharacters(in: .whitespaces).isEmpty {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
         }
     }
 }

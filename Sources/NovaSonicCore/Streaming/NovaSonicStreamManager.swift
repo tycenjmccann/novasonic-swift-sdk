@@ -342,7 +342,62 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Updates session configuration mid-stream without restarting the session.
+    ///
+    /// Only the provided (non-nil) fields are sent in the update event.
+    /// Fields not included remain at their current server-side values.
+    ///
+    /// - Parameters:
+    ///   - replace: Updated pronunciation replacement dictionary.
+    ///   - languageHint: Updated BCP-47 language hint for transcription.
+    ///   - keyterms: Updated list of domain-specific terms for transcription.
+    ///
+    /// - Throws: `NovaSonicError.sessionNotActive` if no session is in progress.
+    ///           `NovaSonicError.invalidConfiguration` if validation fails.
+    public func updateSession(
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil
+    ) throws {
+        guard isStreaming else {
+            throw NovaSonicError.sessionNotActive
+        }
+
+        // Validate keyterms if provided
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            if keyterms.count > 100 {
+                throw NovaSonicError.invalidConfiguration
+            }
+            for term in keyterms {
+                if term.count > 50 {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
+        }
+
+        // Validate language hint if provided
+        if let languageHint = languageHint {
+            let bcp47Pattern = #"^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"#
+            if languageHint.range(of: bcp47Pattern, options: .regularExpression) == nil {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // No-op if all fields are nil
+        guard replace != nil || languageHint != nil || keyterms != nil else { return }
+
+        let event = BedrockEvents.sessionUpdateEvent(
+            replace: replace,
+            languageHint: languageHint,
+            keyterms: keyterms
+        )
+
+        eventStreamContinuation?.yield(
+            .chunk(.init(bytes: Data(event.utf8)))
+        )
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
@@ -479,7 +534,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 // Send text initialization events for NEW CHATS.
                 var textInitEvents: [(String, String)] = [
                     // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
-                    (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
+                    (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue, replace: configuration!.replace, languageHint: configuration!.languageHint, keyterms: configuration!.keyterms), "sessionStart"),
                     (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),

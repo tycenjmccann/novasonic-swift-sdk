@@ -23,12 +23,18 @@ public struct SessionStartEvent: EventBuilder {
     public let topP: Double
     public let temperature: Double
     public let endpointingSensitivity: String?  // Nova 2.0
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
 
-    public init(maxTokens: Int = 1024, topP: Double = 0.9, temperature: Double = 0.7, endpointingSensitivity: String? = nil) {
+    public init(maxTokens: Int = 1024, topP: Double = 0.9, temperature: Double = 0.7, endpointingSensitivity: String? = nil, replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) {
         self.maxTokens = maxTokens
         self.topP = topP
         self.temperature = temperature
         self.endpointingSensitivity = endpointingSensitivity
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
     }
 
     public static func buildEvent() -> String {
@@ -55,6 +61,30 @@ public struct SessionStartEvent: EventBuilder {
                         "endpointingSensitivity": "\(sensitivity)"
                     }
             """
+        }
+
+        // Add replace dictionary if provided
+        if let replace = replace, !replace.isEmpty {
+            if let replaceData = try? JSONSerialization.data(withJSONObject: replace),
+               let replaceString = String(data: replaceData, encoding: .utf8) {
+                json += ",\n                \"replace\": \(replaceString)"
+            }
+        }
+
+        // Add transcription configuration (language_hint, keyterms)
+        var transcription: [String: Any] = [:]
+        if let languageHint = languageHint {
+            transcription["language_hint"] = languageHint
+        }
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            transcription["keyterms"] = keyterms
+        }
+        if !transcription.isEmpty {
+            let audio: [String: Any] = ["input": ["transcription": transcription]]
+            if let audioData = try? JSONSerialization.data(withJSONObject: audio),
+               let audioString = String(data: audioData, encoding: .utf8) {
+                json += ",\n                \"audio\": \(audioString)"
+            }
         }
 
         json += """

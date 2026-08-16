@@ -14,7 +14,8 @@ public enum NovaSonicError: Error, LocalizedError {
     case rateLimitExceeded
     case invalidAudioFormat
     case microphoneNotAvailable
-    
+    case sessionNotActive
+
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -51,6 +52,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Invalid audio format or corrupted audio data"
         case .microphoneNotAvailable:
             return "Microphone is not available on this device"
+        case .sessionNotActive:
+            return "Cannot update session: no active session"
         case .converterCreationFailed:
             return "Failed to create audio converter"
         case .sessionConfigurationFailed:
@@ -92,6 +95,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .microphoneNotAvailable:
             return "Try using a device with microphone support"
+        case .sessionNotActive:
+            return "Start a session before attempting to update it"
         case .converterCreationFailed:
             return "Try restarting the audio session"
         case .sessionConfigurationFailed:
@@ -111,7 +116,7 @@ public enum NovaSonicError: Error, LocalizedError {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
-        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable, .sessionNotActive:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable

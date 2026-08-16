@@ -158,3 +158,215 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+/// Tests for pronunciation replacements, language hint, and keyterms configuration.
+final class TranscriptionConfigTests: XCTestCase {
+
+    // MARK: - Keyterms Validation
+
+    func testKeytermsNilByDefault() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.keyterms)
+    }
+
+    func testKeytermsEmptyArrayTreatedAsNil() {
+        let config = NovaSonicConfiguration(keyterms: [])
+        XCTAssertNil(config.keyterms)
+    }
+
+    func testKeytermsValidWithinLimits() {
+        let config = NovaSonicConfiguration(keyterms: ["Kubernetes", "gRPC"])
+        XCTAssertNoThrow(try config.validate())
+        XCTAssertEqual(config.keyterms, ["Kubernetes", "gRPC"])
+    }
+
+    func testKeytermsExceedingCountRejected() {
+        let terms = (0..<101).map { "term\($0)" }
+        let config = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    func testKeytermsExceedingLengthRejected() {
+        let longTerm = String(repeating: "a", count: 51)
+        let config = NovaSonicConfiguration(keyterms: [longTerm])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    func testKeytermsAt50CharsAccepted() {
+        let maxTerm = String(repeating: "a", count: 50)
+        let config = NovaSonicConfiguration(keyterms: [maxTerm])
+        XCTAssertNoThrow(try config.validate())
+    }
+
+    func testKeytermsAt100CountAccepted() {
+        let terms = (0..<100).map { "t\($0)" }
+        let config = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertNoThrow(try config.validate())
+    }
+
+    func testKeytermsWhitespaceOnlyRejected() {
+        let config = NovaSonicConfiguration(keyterms: ["valid", "   "])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    // MARK: - Language Hint Validation
+
+    func testLanguageHintNilByDefault() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.languageHint)
+    }
+
+    func testLanguageHintValidBCP47Accepted() {
+        for hint in ["en", "en-US", "ja", "es-MX", "zh-Hans-CN"] {
+            let config = NovaSonicConfiguration(languageHint: hint)
+            XCTAssertNoThrow(try config.validate(), "\(hint) should be valid BCP-47")
+        }
+    }
+
+    func testLanguageHintInvalidRejected() {
+        for hint in ["123", "e", "en_US", "en-", "-en"] {
+            let config = NovaSonicConfiguration(languageHint: hint)
+            XCTAssertThrowsError(try config.validate(), "\(hint) should be invalid BCP-47")
+        }
+    }
+
+    // MARK: - Replace Validation
+
+    func testReplaceNilByDefault() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.replace)
+    }
+
+    func testReplaceEmptyDictTreatedAsNil() {
+        let config = NovaSonicConfiguration(replace: [:])
+        XCTAssertNil(config.replace)
+    }
+
+    func testReplaceValidDictAccepted() {
+        let config = NovaSonicConfiguration(replace: ["AWS": "A.W.S."])
+        XCTAssertNoThrow(try config.validate())
+        XCTAssertEqual(config.replace, ["AWS": "A.W.S."])
+    }
+
+    func testReplaceEmptyKeyRejected() {
+        let config = NovaSonicConfiguration(replace: ["": "value"])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    func testReplaceWhitespaceKeyRejected() {
+        let config = NovaSonicConfiguration(replace: ["  ": "value"])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    func testReplaceEmptyValueRejected() {
+        let config = NovaSonicConfiguration(replace: ["key": ""])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    func testReplaceWhitespaceValueRejected() {
+        let config = NovaSonicConfiguration(replace: ["key": "   "])
+        XCTAssertThrowsError(try config.validate())
+    }
+
+    // MARK: - JSON Serialization
+
+    func testSessionStartEventOmitsNilFields() {
+        let json = BedrockEvents.sessionStartEvent()
+        XCTAssertFalse(json.contains("replace"))
+        XCTAssertFalse(json.contains("language_hint"))
+        XCTAssertFalse(json.contains("keyterms"))
+    }
+
+    func testSessionStartEventIncludesReplace() {
+        let json = BedrockEvents.sessionStartEvent(replace: ["AWS": "A.W.S."])
+        XCTAssertTrue(json.contains("replace"))
+        XCTAssertTrue(json.contains("AWS"))
+        XCTAssertTrue(json.contains("A.W.S."))
+    }
+
+    func testSessionStartEventIncludesLanguageHint() {
+        let json = BedrockEvents.sessionStartEvent(languageHint: "ja")
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("ja"))
+        XCTAssertTrue(json.contains("transcription"))
+    }
+
+    func testSessionStartEventIncludesKeyterms() {
+        let json = BedrockEvents.sessionStartEvent(keyterms: ["Kubernetes", "gRPC"])
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("Kubernetes"))
+        XCTAssertTrue(json.contains("gRPC"))
+    }
+
+    func testSessionUpdateEventPartialReplace() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["X": "Y"])
+        XCTAssertTrue(json.contains("session.update"))
+        XCTAssertTrue(json.contains("replace"))
+        XCTAssertFalse(json.contains("language_hint"))
+        XCTAssertFalse(json.contains("keyterms"))
+    }
+
+    func testSessionUpdateEventPartialLanguageHint() {
+        let json = BedrockEvents.sessionUpdateEvent(languageHint: "es-MX")
+        XCTAssertTrue(json.contains("session.update"))
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("es-MX"))
+        XCTAssertFalse(json.contains("replace"))
+    }
+
+    func testSessionUpdateEventAllNilReturnsEmptyObject() {
+        let json = BedrockEvents.sessionUpdateEvent()
+        XCTAssertEqual(json, "{}")
+    }
+
+    func testSessionUpdateEventEmptyCollectionsReturnsEmptyObject() {
+        let json = BedrockEvents.sessionUpdateEvent(replace: [:], keyterms: [])
+        XCTAssertEqual(json, "{}")
+    }
+
+    // MARK: - Backward Compatibility
+
+    func testExistingConfigUnchanged() {
+        let config = NovaSonicConfiguration(
+            region: "us-east-1",
+            voice: .tiffany,
+            systemPrompt: "Test"
+        )
+        XCTAssertNil(config.replace)
+        XCTAssertNil(config.languageHint)
+        XCTAssertNil(config.keyterms)
+        XCTAssertNoThrow(try config.validate())
+    }
+
+    func testPresetsHaveNilNewFields() {
+        let presets: [NovaSonicConfiguration] = [
+            .default,
+            .maxQuality,
+            .lowBandwidth,
+            .creative,
+            .focused
+        ]
+        for preset in presets {
+            XCTAssertNil(preset.replace)
+            XCTAssertNil(preset.languageHint)
+            XCTAssertNil(preset.keyterms)
+        }
+    }
+
+    func testSessionStartJsonIdenticalWhenFieldsNil() {
+        let withNil = BedrockEvents.sessionStartEvent(
+            temperature: 0.7,
+            topP: 0.9,
+            maxTokens: 1024,
+            replace: nil,
+            languageHint: nil,
+            keyterms: nil
+        )
+        let without = BedrockEvents.sessionStartEvent(
+            temperature: 0.7,
+            topP: 0.9,
+            maxTokens: 1024
+        )
+        XCTAssertEqual(withNil, without)
+    }
+}
