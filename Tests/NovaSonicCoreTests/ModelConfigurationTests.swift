@@ -90,6 +90,72 @@ final class ModelConfigurationTests: XCTestCase {
     }
 }
 
+/// Covers session update event generation and auto-send condition logic.
+final class SessionUpdateTests: XCTestCase {
+
+    func testSessionUpdateEventContainsAllFields() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            replace: ["Acme": "Akmee"],
+            languageHint: "ja",
+            keyterms: ["NovaSonic", "SDK"]
+        )
+        XCTAssertTrue(json.contains("sessionUpdate"))
+        XCTAssertTrue(json.contains("Acme"))
+        XCTAssertTrue(json.contains("Akmee"))
+        XCTAssertTrue(json.contains("languageHint"))
+        XCTAssertTrue(json.contains("ja"))
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("NovaSonic"))
+    }
+
+    func testSessionUpdateEventFromConfiguration() {
+        let config = NovaSonicConfiguration(
+            replace: ["Hello": "Hola"],
+            languageHint: "es",
+            keyterms: ["greeting"]
+        )
+        let json = BedrockEvents.sessionUpdateEvent(configuration: config)
+        XCTAssertTrue(json.contains("Hello"))
+        XCTAssertTrue(json.contains("Hola"))
+        XCTAssertTrue(json.contains("es"))
+        XCTAssertTrue(json.contains("greeting"))
+    }
+
+    func testAutoSendConditionDetectsNonNilFields() {
+        let configWithReplace = NovaSonicConfiguration(replace: ["Hi": "Hello"])
+        XCTAssertTrue(configWithReplace.replace != nil || configWithReplace.languageHint != nil || configWithReplace.keyterms != nil)
+
+        let configWithLanguageHint = NovaSonicConfiguration(languageHint: "ja")
+        XCTAssertTrue(configWithLanguageHint.replace != nil || configWithLanguageHint.languageHint != nil || configWithLanguageHint.keyterms != nil)
+
+        let configWithKeyterms = NovaSonicConfiguration(keyterms: ["SDK", "API"])
+        XCTAssertTrue(configWithKeyterms.replace != nil || configWithKeyterms.languageHint != nil || configWithKeyterms.keyterms != nil)
+
+        let configWithNone = NovaSonicConfiguration()
+        XCTAssertFalse(configWithNone.replace != nil || configWithNone.languageHint != nil || configWithNone.keyterms != nil)
+
+        let configWithAll = NovaSonicConfiguration(replace: ["A": "B"], languageHint: "en", keyterms: ["term"])
+        XCTAssertTrue(configWithAll.replace != nil || configWithAll.languageHint != nil || configWithAll.keyterms != nil)
+    }
+
+    func testKeytermsValidationRejectsOver100Items() {
+        let tooMany = Array(repeating: "term", count: 101)
+        let cfg = NovaSonicConfiguration(keyterms: tooMany)
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testKeytermsValidationRejectsLongTerm() {
+        let longTerm = String(repeating: "a", count: 51)
+        let cfg = NovaSonicConfiguration(keyterms: [longTerm])
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testKeytermsValidationAcceptsValidTerms() {
+        let cfg = NovaSonicConfiguration(keyterms: ["NovaSonic", "API", "Swift"])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+}
+
 /// Sanity checks on the metrics value types used for latency comparison.
 final class SessionMetricsTests: XCTestCase {
 

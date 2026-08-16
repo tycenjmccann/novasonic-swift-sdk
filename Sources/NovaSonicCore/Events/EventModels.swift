@@ -11,6 +11,7 @@ public enum NovaResponseEvent {
     case toolUse(ToolUseResponse)
     case contentEnd(ContentEndResponse)
     case completionEnd(CompletionEndEvent)
+    case sessionUpdated(SessionUpdatedResponse)
     case error(ErrorResponse)
 }
 
@@ -95,6 +96,10 @@ public struct CompletionEndEvent: Codable {
     public let promptName: String
     public let completionId: String
     public let stopReason: String
+}
+
+public struct SessionUpdatedResponse: Codable {
+    public let sessionId: String?
 }
 
 public struct ErrorResponse: Codable {

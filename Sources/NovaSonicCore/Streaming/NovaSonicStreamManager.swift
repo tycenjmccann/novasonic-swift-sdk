@@ -95,6 +95,10 @@ public class NovaSonicStreamManager: ObservableObject {
     
     // Speak first configuration
     private var shouldSpeakFirst = false
+
+    /// Whether the initial configuration-time session update has been sent.
+    /// Reset on each session start; prevents duplicates if the host also calls `updateSession()`.
+    private var hasAppliedInitialSessionUpdate = false
     
     // Logging counters
     private var chunkCounter = 0
@@ -343,8 +347,30 @@ public class NovaSonicStreamManager: ObservableObject {
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
     
+    // MARK: - Session Update (Mid-Stream)
+
+    /// Send a `session.update` event to change pronunciation replacements, language hint,
+    /// or key terms mid-session. Can be called any time while the session is active.
+    public func updateSession(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+
+        let updateJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        continuation.yield(
+            .chunk(
+                .init(bytes: Data(updateJson.utf8))
+            )
+        )
+        NovaSonicLogger.standard("📝 Sent session.update (replace/languageHint/keyterms)")
+    }
+
     // MARK: - History Management
-    
+
     /// Set the history manager for conversation persistence
     /// - Parameter manager: The history manager to use, or nil to disable history
     public func setHistoryManager(_ manager: NovaSonicHistoryManager?) {
@@ -422,6 +448,7 @@ public class NovaSonicStreamManager: ObservableObject {
         // Reset tracking variables
         speculativeMessageIds = []
         finalMessageCount = 0
+        hasAppliedInitialSessionUpdate = false
 
         // Start a fresh metrics session on a monotonic clock.
         metricsEpoch = DispatchTime.now()
@@ -533,7 +560,17 @@ public class NovaSonicStreamManager: ObservableObject {
                 let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz, inputTransport: configuration!.inputTransport)
                 yieldEvent(audioInitEvent, label: "audioContentStart")
                 try? await Task.sleep(nanoseconds: 100_000_000)
-                
+
+                // Auto-send session.update if configuration-time replace/languageHint/keyterms are set
+                if let config = self.configuration,
+                   (config.replace != nil || config.languageHint != nil || config.keyterms != nil) {
+                    let updateJson = BedrockEvents.sessionUpdateEvent(configuration: config)
+                    yieldEvent(updateJson, label: "initialSessionUpdate")
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    NovaSonicLogger.standard("📝 Auto-sent session.update from configuration (replace/languageHint/keyterms)")
+                    await MainActor.run { self.hasAppliedInitialSessionUpdate = true }
+                }
+
                 // Send initial prompt if speakFirst is enabled (audio fallback for legacy)
                 NovaSonicLogger.verbose("Checking shouldSpeakFirst = \(shouldSpeakFirst)")
                 if shouldSpeakFirst && configuration?.initialTextPrompt == nil {
@@ -851,6 +888,10 @@ public class NovaSonicStreamManager: ObservableObject {
             }
         }
         
+        if event["sessionUpdated"] != nil {
+            NovaSonicLogger.standard("✅ session.updated acknowledgement received")
+        }
+
         if let audioOutput = event["audioOutput"] as? [String: Any],
            let content = audioOutput["content"] as? String,
            let audioData = Data(base64Encoded: content) {

@@ -408,6 +408,33 @@ NovaSonicFloatingButton(
 )
 ```
 
+### Configuration-Time Session Updates
+
+When you set `replace`, `languageHint`, or `keyterms` on `NovaSonicConfiguration`, these values are **automatically applied at session start** — there is no need to call `updateSession()` separately:
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["Acme Mobile": "Acme Mobull"],
+    languageHint: "ja",
+    keyterms: ["Acme Mobile", "NovaSonic"]
+)
+streamManager.configure(with: config)
+try await streamManager.startSession()
+// ✅ replace, languageHint, and keyterms are automatically sent during initialization
+```
+
+You can still call `updateSession()` mid-session to change these values:
+
+```swift
+try await streamManager.updateSession(
+    replace: ["NewTerm": "New Pronunciation"],
+    languageHint: "es-MX",
+    keyterms: ["NewTerm"]
+)
+```
+
 ## Features
 
 ### 🎙️ **Audio & Streaming**

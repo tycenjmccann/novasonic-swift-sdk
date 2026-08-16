@@ -307,6 +307,18 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events (Nova 2.0)
+
+    /// Build a `session.update` event from explicit parameters.
+    public static func sessionUpdateEvent(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) -> String {
+        return SessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms).buildEvent()
+    }
+
+    /// Build a `session.update` event from a `NovaSonicConfiguration`.
+    public static func sessionUpdateEvent(configuration: NovaSonicConfiguration) -> String {
+        return SessionUpdateEvent(replace: configuration.replace, languageHint: configuration.languageHint, keyterms: configuration.keyterms).buildEvent()
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {
