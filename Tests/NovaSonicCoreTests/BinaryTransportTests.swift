@@ -175,6 +175,70 @@ final class BinaryTransportTests: XCTestCase {
         XCTAssertNotNil(event["textOutput"])
     }
 
+    // MARK: - 0x7B edge-case: PCM audio starting with '{' byte
+
+    func testBinaryDataStartingWith0x7BIsTreatedAsAudio() {
+        // 0x7B is ASCII '{'. Raw PCM audio can legitimately start with this byte.
+        // The binary frame detection must NOT use a first-byte heuristic;
+        // it must attempt a full JSON parse and only treat data as audio if parse fails.
+        let pcmStartingWithBrace = Data([0x7B, 0x00, 0x80, 0xFF, 0x7F, 0x01, 0x02, 0x03])
+        let jsonString = String(decoding: pcmStartingWithBrace, as: UTF8.self)
+
+        // Attempt the same parsing logic used in NovaSonicStreamManager.processResponses
+        let isValidJsonEvent: Bool
+        if let jsonData = jsonString.data(using: .utf8),
+           let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let _ = topLevel["event"] as? [String: Any] {
+            isValidJsonEvent = true
+        } else {
+            isValidJsonEvent = false
+        }
+
+        XCTAssertFalse(isValidJsonEvent,
+            "PCM audio starting with 0x7B ('{') must NOT be classified as a JSON event")
+    }
+
+    func testBinaryDataStartingWith0x7BThatIsValidJsonEventIsParsed() {
+        // Verify that actual JSON events starting with '{' ARE correctly parsed
+        let validEvent = #"{"event":{"contentStart":{"contentId":"abc123"}}}"#
+        let bytes = Data(validEvent.utf8)
+
+        // Confirm first byte is 0x7B
+        XCTAssertEqual(bytes[0], 0x7B, "Test setup: first byte should be 0x7B ('{')")
+
+        let jsonString = String(decoding: bytes, as: UTF8.self)
+        let isValidJsonEvent: Bool
+        if let jsonData = jsonString.data(using: .utf8),
+           let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let _ = topLevel["event"] as? [String: Any] {
+            isValidJsonEvent = true
+        } else {
+            isValidJsonEvent = false
+        }
+
+        XCTAssertTrue(isValidJsonEvent,
+            "Valid JSON event with 'event' key must be correctly parsed as a control event")
+    }
+
+    func testBinaryDataStartingWith0x7BPartialJsonTreatedAsAudio() {
+        // Edge case: data that starts like JSON '{' but is truncated/corrupted PCM
+        // This should fail JSON parse and be treated as audio
+        let partialJson = Data([0x7B, 0x22, 0x65, 0x76]) // starts as '{"ev' but incomplete
+        let jsonString = String(decoding: partialJson, as: UTF8.self)
+
+        let isValidJsonEvent: Bool
+        if let jsonData = jsonString.data(using: .utf8),
+           let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let _ = topLevel["event"] as? [String: Any] {
+            isValidJsonEvent = true
+        } else {
+            isValidJsonEvent = false
+        }
+
+        XCTAssertFalse(isValidJsonEvent,
+            "Truncated data starting with '{' must be treated as PCM audio, not a JSON event")
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ string: String) -> [String: Any]? {

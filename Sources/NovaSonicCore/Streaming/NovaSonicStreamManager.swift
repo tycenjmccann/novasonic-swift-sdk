@@ -692,8 +692,11 @@ public class NovaSonicStreamManager: ObservableObject {
                     continue
                 }
 
-                // Binary output transport: if configured, attempt JSON parse first.
-                // If the data is not valid JSON, treat it as raw PCM audio.
+                // Binary output transport: try full JSON parse to distinguish control events from PCM audio.
+                // IMPORTANT: Do NOT replace this with a first-byte heuristic (e.g. checking for 0x7B '{').
+                // Raw PCM audio can legitimately start with any byte value including 0x7B.
+                // The try-parse approach is correct: if it's valid JSON with an "event" key, handle it;
+                // otherwise treat the entire frame as raw PCM audio data.
                 if configuration?.outputTransport == .binary {
                     let jsonString = String(decoding: bytes, as: UTF8.self)
                     if let jsonData = jsonString.data(using: .utf8),
