@@ -543,13 +543,23 @@ public class NovaSonicStreamManager: ObservableObject {
                     
                     if let initialAudioData = self.getInitialAudioData() {
                         NovaSonicLogger.standard("🎙️ Got initial audio data, size: \(initialAudioData.count) bytes")
-                        let audioInputEvent = BedrockEvents.audioInputEvent(
-                            audioData: initialAudioData,
-                            promptName: promptName,
-                            audioContentName: audioContentName
-                        )
-                        NovaSonicLogger.standard("🎙️ Created audioInputEvent, sending to Nova Sonic...")
-                        yieldEvent(audioInputEvent, label: "initialAudioPrompt")
+                        let inputTransport = self.configuration?.inputTransport ?? .json
+                        if inputTransport == .binary {
+                            NovaSonicLogger.standard("🎙️ Sending initial audio as raw binary (transport: binary)")
+                            continuation.yield(
+                                .chunk(
+                                    .init(bytes: initialAudioData)
+                                )
+                            )
+                        } else {
+                            let audioInputEvent = BedrockEvents.audioInputEvent(
+                                audioData: initialAudioData,
+                                promptName: promptName,
+                                audioContentName: audioContentName
+                            )
+                            NovaSonicLogger.standard("🎙️ Created audioInputEvent, sending to Nova Sonic...")
+                            yieldEvent(audioInputEvent, label: "initialAudioPrompt")
+                        }
                         try? await Task.sleep(nanoseconds: 100_000_000)
                         NovaSonicLogger.standard("🎙️ Initial audio prompt sent successfully")
                     } else {

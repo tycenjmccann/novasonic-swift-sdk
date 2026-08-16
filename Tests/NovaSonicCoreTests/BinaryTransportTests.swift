@@ -175,6 +175,42 @@ final class BinaryTransportTests: XCTestCase {
         XCTAssertNotNil(event["textOutput"])
     }
 
+    // MARK: - Greeting audio transport selection (TEAM-2479)
+
+    func testGreetingAudioBinaryTransportSendsRawData() {
+        let greetingAudio = Data(repeating: 0x42, count: 2048)
+        let binaryResult = BedrockEvents.binaryAudioInputData(audioData: greetingAudio)
+        XCTAssertEqual(binaryResult, greetingAudio, "Binary transport must send greeting audio as raw bytes")
+        XCTAssertEqual(binaryResult.count, greetingAudio.count, "Binary transport must not expand greeting audio")
+    }
+
+    func testGreetingAudioJsonTransportSendsBase64Event() {
+        let greetingAudio = Data(repeating: 0x42, count: 2048)
+        let jsonEvent = BedrockEvents.audioInputEvent(
+            audioData: greetingAudio,
+            promptName: "test-prompt",
+            audioContentName: "test-audio"
+        )
+        XCTAssertTrue(jsonEvent.count > greetingAudio.count, "JSON transport must base64-expand greeting audio")
+        let parsed = parseJSON(jsonEvent)
+        let event = parsed?["event"] as? [String: Any]
+        let audioInput = event?["audioInput"] as? [String: Any]
+        XCTAssertNotNil(audioInput, "JSON transport must produce valid audioInput event")
+        XCTAssertEqual(audioInput?["promptName"] as? String, "test-prompt")
+        XCTAssertEqual(audioInput?["contentName"] as? String, "test-audio")
+        let content = audioInput?["content"] as? String
+        XCTAssertEqual(content, greetingAudio.base64EncodedString())
+    }
+
+    func testGreetingAudioTransportSelectionMatchesMicTransport() {
+        let audioData = Data([0x80, 0x00, 0x7F, 0xFF, 0x01, 0x02, 0x03, 0x04])
+        let binaryOutput = BedrockEvents.binaryAudioInputData(audioData: audioData)
+        let jsonOutput = BedrockEvents.audioInputEvent(audioData: audioData, promptName: "p", audioContentName: "a")
+        XCTAssertEqual(binaryOutput, audioData)
+        XCTAssertTrue(jsonOutput.count > audioData.count * 2, "JSON wrapping should significantly expand data size")
+        XCTAssertTrue(jsonOutput.contains(audioData.base64EncodedString()), "JSON event must contain base64-encoded audio")
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ string: String) -> [String: Any]? {
