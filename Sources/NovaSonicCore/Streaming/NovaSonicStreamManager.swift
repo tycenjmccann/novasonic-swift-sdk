@@ -695,13 +695,22 @@ public class NovaSonicStreamManager: ObservableObject {
                 // Binary output transport: if configured, attempt JSON parse first.
                 // If the data is not valid JSON, treat it as raw PCM audio.
                 if configuration?.outputTransport == .binary {
-                    let jsonString = String(decoding: bytes, as: UTF8.self)
-                    if let jsonData = jsonString.data(using: .utf8),
-                       let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                       let event = topLevel["event"] as? [String: Any] {
-                        await handleEvent(event)
+                    // All Nova Sonic JSON events start with {"event" — check 8-byte prefix
+                    // to distinguish JSON control messages from raw PCM audio frames without
+                    // paying the cost of JSONSerialization on every audio packet.
+                    let jsonMarker = Data(#"{"event""#.utf8)  // 8 bytes: { " e v e n t "
+                    let isJsonEvent = bytes.count >= jsonMarker.count && bytes.prefix(jsonMarker.count) == jsonMarker
+
+                    if isJsonEvent {
+                        // JSON control event — parse and handle
+                        if let topLevel = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+                           let event = topLevel["event"] as? [String: Any] {
+                            await handleEvent(event)
+                        } else {
+                            NovaSonicLogger.error("❌ Failed to parse Nova Sonic binary-mode JSON event")
+                        }
                     } else {
-                        // Raw binary PCM audio data
+                        // Raw binary PCM audio frame — route directly to playback
                         if sessionMetrics?.turns.last?.firstAudioChunkAt == nil {
                             withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
                         }
