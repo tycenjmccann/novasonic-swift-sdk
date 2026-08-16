@@ -158,3 +158,42 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+/// Covers case-insensitive BCP-47 language hint validation (TEAM-2494).
+final class LanguageHintValidationTests: XCTestCase {
+
+    func testLanguageHintLowercaseAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "en")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintUppercaseAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "EN")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintMixedCaseAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "Ja")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintRegionCodeUppercaseAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "ES-MX")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintRegionCodeAllLowercaseAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "ar-eg")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintInvalidCodeStillRejected() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: "xx")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testLanguageHintNilIsAccepted() {
+        let cfg = NovaSonicConfiguration(region: "us-east-1", languageHint: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+}

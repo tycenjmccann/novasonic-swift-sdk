@@ -489,7 +489,7 @@ extension NovaSonicConfiguration {
         // Validate languageHint against supported codes
         if let hint = languageHint {
             let supportedLanguages = ["en", "ja", "zh", "fr", "de", "hi", "ar-EG", "ar-SA", "ar-AE", "bn", "id", "it", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
-            guard supportedLanguages.contains(hint) else {
+            guard supportedLanguages.contains(where: { $0.caseInsensitiveCompare(hint) == .orderedSame }) else {
                 throw NovaSonicError.invalidConfiguration
             }
         }
