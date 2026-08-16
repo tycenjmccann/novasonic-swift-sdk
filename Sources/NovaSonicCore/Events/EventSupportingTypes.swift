@@ -129,9 +129,11 @@ public struct SessionUpdateEvent {
             ]
         }
 
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+        let envelope: [String: Any] = ["event": ["sessionUpdate": payload]]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]),
               let string = String(data: data, encoding: .utf8) else {
-            return "{\"type\":\"session.update\"}"
+            return "{\"event\":{\"sessionUpdate\":{\"type\":\"session.update\"}}}"
         }
         return string
     }
