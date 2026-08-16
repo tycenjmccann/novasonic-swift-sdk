@@ -824,6 +824,13 @@ public class NovaSonicStreamManager: ObservableObject {
             }
         }
         
+        if let sessionUpdated = event["sessionUpdated"] as? [String: Any] {
+            let sessionId = sessionUpdated["sessionId"] as? String ?? ""
+            let response = SessionUpdatedResponse(sessionId: sessionId)
+            delegate?.didReceiveSessionUpdate(response)
+            NovaSonicLogger.standard("✅ Session updated confirmed (sessionId: \(sessionId))")
+        }
+
         if let audioOutput = event["audioOutput"] as? [String: Any],
            let content = audioOutput["content"] as? String,
            let audioData = Data(base64Encoded: content) {
@@ -915,6 +922,41 @@ public class NovaSonicStreamManager: ObservableObject {
         addMessage(msg)  // Use thread-safe method
     }
     
+    /// Send a session.update event to modify pronunciation replacements, language hint, or keyterms mid-session.
+    /// - Throws: `NovaSonicError.sessionNotActive` if no active session
+    /// - Throws: Validation errors for invalid languageHint or keyterms
+    public func sendSessionUpdate(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        guard isStreaming else {
+            throw NovaSonicError.sessionNotActive
+        }
+
+        // Validate languageHint if provided
+        if let hint = languageHint {
+            let lowered = hint.lowercased()
+            if lowered == "es" || lowered == "pt" {
+                throw NovaSonicError.invalidLanguageHint("Bare '\(hint)' is not supported. Use a regional variant: es-MX, es-ES, pt-BR, or pt-PT")
+            }
+        }
+
+        // Validate keyterms if provided
+        if let terms = keyterms {
+            if terms.count > 100 {
+                throw NovaSonicError.invalidKeyterms("Keyterms array exceeds maximum of 100 elements (got \(terms.count))")
+            }
+            if let longTerm = terms.first(where: { $0.count > 50 }) {
+                throw NovaSonicError.invalidKeyterms("Keyterm exceeds 50 character limit: '\(longTerm.prefix(50))...'")
+            }
+        }
+
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+
+        let eventJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        continuation.yield(.chunk(.init(bytes: Data(eventJson.utf8))))
+        NovaSonicLogger.standard("📤 Sent session.update event")
+    }
+
     public func stopStreaming() async {
         NovaSonicLogger.standard("🛑 Stopping Nova Sonic streaming session")
         
@@ -1166,6 +1208,7 @@ public protocol NovaSonicStreamDelegate: AnyObject {
     func didReceiveTranscription(_ text: String, isFinal: Bool)
     func didReceiveTextResponse(_ text: String)
     func didReceiveToolCall(_ toolName: String, parameters: [String: Any], toolUseId: String)
+    func didReceiveSessionUpdate(_ response: SessionUpdatedResponse)
     func didEncounterError(_ error: NovaSonicError)
 }
 
@@ -1176,5 +1219,6 @@ public extension NovaSonicStreamDelegate {
     func didReceiveTranscription(_ text: String, isFinal: Bool) {}
     func didReceiveTextResponse(_ text: String) {}
     func didReceiveToolCall(_ toolName: String, parameters: [String: Any], toolUseId: String) {}
+    func didReceiveSessionUpdate(_ response: SessionUpdatedResponse) {}
     func didEncounterError(_ error: NovaSonicError) {}
 }

@@ -296,6 +296,43 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    /// Builds a session.update event JSON for mid-session configuration changes.
+    /// Only non-nil fields are included in the output.
+    public static func sessionUpdateEvent(replace: [String: String]?, languageHint: String?, keyterms: [String]?) -> String {
+        var session: [String: Any] = [:]
+
+        if let replace = replace {
+            session["replace"] = replace
+        }
+
+        if languageHint != nil || keyterms != nil {
+            var transcription: [String: Any] = [:]
+            if let languageHint = languageHint {
+                transcription["language_hint"] = languageHint
+            }
+            if let keyterms = keyterms {
+                transcription["keyterms"] = keyterms
+            }
+            session["audio"] = [
+                "input": [
+                    "transcription": transcription
+                ]
+            ]
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "sessionUpdate": [
+                    "session": session
+                ]
+            ]
+        ]
+
+        return encodeJSON(event)
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

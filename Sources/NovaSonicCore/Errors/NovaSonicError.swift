@@ -15,6 +15,11 @@ public enum NovaSonicError: Error, LocalizedError {
     case invalidAudioFormat
     case microphoneNotAvailable
     
+    // Session update errors
+    case sessionNotActive
+    case invalidLanguageHint(String)
+    case invalidKeyterms(String)
+
     // Audio-specific errors
     case converterCreationFailed
     case sessionConfigurationFailed
@@ -51,6 +56,12 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Invalid audio format or corrupted audio data"
         case .microphoneNotAvailable:
             return "Microphone is not available on this device"
+        case .sessionNotActive:
+            return "Cannot send session update - no active session"
+        case .invalidLanguageHint(let message):
+            return "Invalid language hint: \(message)"
+        case .invalidKeyterms(let message):
+            return "Invalid keyterms: \(message)"
         case .converterCreationFailed:
             return "Failed to create audio converter"
         case .sessionConfigurationFailed:
@@ -92,6 +103,12 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .microphoneNotAvailable:
             return "Try using a device with microphone support"
+        case .sessionNotActive:
+            return "Call startSession() before sending session updates"
+        case .invalidLanguageHint:
+            return "Use a regional variant such as es-MX, es-ES, pt-BR, or pt-PT"
+        case .invalidKeyterms:
+            return "Ensure keyterms array has at most 100 elements, each at most 50 characters"
         case .converterCreationFailed:
             return "Try restarting the audio session"
         case .sessionConfigurationFailed:
@@ -112,6 +129,8 @@ public enum NovaSonicError: Error, LocalizedError {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
         case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+            return false
+        case .sessionNotActive, .invalidLanguageHint, .invalidKeyterms:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable

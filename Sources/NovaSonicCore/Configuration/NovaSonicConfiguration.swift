@@ -84,8 +84,21 @@ public struct NovaSonicConfiguration {
     /// Used for both Bedrock and DynamoDB clients when provided
     public let awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)?
     
+    // MARK: - Session Update Configuration
+
+    /// Pronunciation replacements: maps display text to phonetic pronunciation
+    /// e.g., ["Acme Mobile": "Acme Mobull"]
+    public let replace: [String: String]?
+
+    /// BCP-47 language hint for transcription bias
+    /// Supported: en, ar-EG, ar-SA, ar-AE, bn, zh, fr, de, hi, id, it, ja, ko, pt-BR, pt-PT, ru, es-MX, es-ES, tr, vi
+    public let languageHint: String?
+
+    /// Domain-specific keyterms to bias transcription (max 100 terms, each max 50 chars)
+    public let keyterms: [String]?
+
     // MARK: - Logging Configuration
-    
+
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
     
@@ -104,6 +117,9 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +140,9 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,7 +150,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -155,6 +174,9 @@ public struct NovaSonicConfiguration {
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -177,6 +199,9 @@ public struct NovaSonicConfiguration {
         self.outputSampleRate = outputSampleRate
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -463,6 +488,24 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate languageHint if provided
+        if let hint = languageHint {
+            let lowered = hint.lowercased()
+            if lowered == "es" || lowered == "pt" {
+                throw NovaSonicError.invalidLanguageHint("Bare '\(hint)' is not supported. Use a regional variant: es-MX, es-ES, pt-BR, or pt-PT")
+            }
+        }
+
+        // Validate keyterms if provided
+        if let terms = keyterms {
+            if terms.count > 100 {
+                throw NovaSonicError.invalidKeyterms("Keyterms array exceeds maximum of 100 elements (got \(terms.count))")
+            }
+            if let longTerm = terms.first(where: { $0.count > 50 }) {
+                throw NovaSonicError.invalidKeyterms("Keyterm exceeds 50 character limit: '\(longTerm.prefix(50))...'")
+            }
         }
     }
 }
