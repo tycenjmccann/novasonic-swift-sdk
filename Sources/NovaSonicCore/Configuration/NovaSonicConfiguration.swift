@@ -490,15 +490,19 @@ extension NovaSonicConfiguration {
             throw NovaSonicError.invalidConfiguration
         }
 
-        // Validate languageHint (if set, reject bare "es" and "pt" — must be regional variant)
+        // Validate languageHint and keyterms
+        try Self.validateSessionUpdateParameters(languageHint: languageHint, keyterms: keyterms)
+    }
+
+    /// Validates session-update parameters (languageHint, keyterms) independently.
+    /// Used by both `validate()` and `NovaSonicStreamManager.sendSessionUpdate()`.
+    public static func validateSessionUpdateParameters(languageHint: String?, keyterms: [String]?) throws {
         if let hint = languageHint {
             let bareCodesRequiringRegion = ["es", "pt"]
             if bareCodesRequiringRegion.contains(hint.lowercased()) {
                 throw NovaSonicError.invalidConfiguration
             }
         }
-
-        // Validate keyterms (if set, max 100 items, each ≤50 characters)
         if let terms = keyterms {
             guard terms.count <= 100 else {
                 throw NovaSonicError.invalidConfiguration

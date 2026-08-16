@@ -349,6 +349,9 @@ public class NovaSonicStreamManager: ObservableObject {
         languageHint: String? = nil,
         keyterms: [String]? = nil
     ) async throws {
+        // Validate parameters before sending (same rules as NovaSonicConfiguration.validate())
+        try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: languageHint, keyterms: keyterms)
+
         guard isStreaming else {
             throw NovaSonicError.streamingError("Cannot send session update - session not active")
         }

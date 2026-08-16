@@ -176,4 +176,94 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertEqual(replace["AI"], "A.I.")
         XCTAssertNil(sessionUpdate["audio"])
     }
+
+    // MARK: - Mid-session Validation (sendSessionUpdate path)
+
+    func testValidateSessionUpdateParametersRejectsBareEs() {
+        XCTAssertThrowsError(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: "es", keyterms: nil)) { error in
+            XCTAssertTrue(error is NovaSonicError)
+        }
+    }
+
+    func testValidateSessionUpdateParametersRejectsBarePt() {
+        XCTAssertThrowsError(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: "pt", keyterms: nil)) { error in
+            XCTAssertTrue(error is NovaSonicError)
+        }
+    }
+
+    func testValidateSessionUpdateParametersRejectsTooManyKeyterms() {
+        let terms = Array(repeating: "x", count: 101)
+        XCTAssertThrowsError(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: nil, keyterms: terms)) { error in
+            XCTAssertTrue(error is NovaSonicError)
+        }
+    }
+
+    func testValidateSessionUpdateParametersRejectsLongKeyterm() {
+        let longTerm = String(repeating: "a", count: 51)
+        XCTAssertThrowsError(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: nil, keyterms: [longTerm])) { error in
+            XCTAssertTrue(error is NovaSonicError)
+        }
+    }
+
+    func testValidateSessionUpdateParametersAcceptsValidInputs() {
+        XCTAssertNoThrow(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: "es-MX", keyterms: ["valid"]))
+    }
+
+    func testValidateSessionUpdateParametersAcceptsNilInputs() {
+        XCTAssertNoThrow(try NovaSonicConfiguration.validateSessionUpdateParameters(languageHint: nil, keyterms: nil))
+    }
+
+    @MainActor
+    func testSendSessionUpdateThrowsInvalidConfigForBareEs() async {
+        let manager = NovaSonicStreamManager()
+        do {
+            try await manager.sendSessionUpdate(languageHint: "es")
+            XCTFail("Expected invalidConfiguration error")
+        } catch let error as NovaSonicError {
+            switch error {
+            case .invalidConfiguration:
+                break // expected
+            default:
+                XCTFail("Expected invalidConfiguration, got \(error)")
+            }
+        } catch {
+            XCTFail("Expected NovaSonicError, got \(error)")
+        }
+    }
+
+    @MainActor
+    func testSendSessionUpdateThrowsInvalidConfigForTooManyKeyterms() async {
+        let manager = NovaSonicStreamManager()
+        do {
+            try await manager.sendSessionUpdate(keyterms: Array(repeating: "x", count: 101))
+            XCTFail("Expected invalidConfiguration error")
+        } catch let error as NovaSonicError {
+            switch error {
+            case .invalidConfiguration:
+                break // expected
+            default:
+                XCTFail("Expected invalidConfiguration, got \(error)")
+            }
+        } catch {
+            XCTFail("Expected NovaSonicError, got \(error)")
+        }
+    }
+
+    @MainActor
+    func testSendSessionUpdateThrowsInvalidConfigForLongKeyterm() async {
+        let manager = NovaSonicStreamManager()
+        do {
+            try await manager.sendSessionUpdate(keyterms: [String(repeating: "a", count: 51)])
+            XCTFail("Expected invalidConfiguration error")
+        } catch let error as NovaSonicError {
+            switch error {
+            case .invalidConfiguration:
+                break // expected
+            default:
+                XCTFail("Expected invalidConfiguration, got \(error)")
+            }
+        } catch {
+            XCTFail("Expected NovaSonicError, got \(error)")
+        }
+    }
 }
