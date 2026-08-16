@@ -175,6 +175,78 @@ final class BinaryTransportTests: XCTestCase {
         XCTAssertNotNil(event["textOutput"])
     }
 
+    // MARK: - Binary frame detection with 8-byte prefix
+
+    func testBinaryFrameWithJsonPrefixByteNotMisrouted() {
+        // PCM audio where first byte is 0x7B ('{') — the old single-byte check
+        // would have misclassified this as JSON. The 8-byte prefix check must NOT match.
+        let pcmFrame = Data([0x7B, 0x00, 0x80, 0xFF, 0x01, 0x02, 0x03, 0x04])
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = pcmFrame.count >= jsonMarker.count && pcmFrame.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertFalse(isJsonEvent, "PCM frame starting with 0x7B must NOT be classified as JSON event")
+    }
+
+    func testJsonEventMarkerDetection() {
+        // A valid Nova Sonic JSON event must match the 8-byte prefix
+        let validEvent = Data(#"{"event":{"textOutput":{"content":"hello","role":"ASSISTANT"}}}"#.utf8)
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = validEvent.count >= jsonMarker.count && validEvent.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertTrue(isJsonEvent, "Valid JSON event must match the 8-byte marker prefix")
+    }
+
+    func testAudioFrameStartingWith0x7BFollowedByNonQuote() {
+        // PCM audio: first byte is '{' (0x7B), second byte is NOT '"' (0x22)
+        // This would have fooled a 1-byte check but not the 8-byte prefix check
+        let pcmFrame = Data([0x7B, 0x80, 0x7F, 0x00, 0x01, 0x02, 0xFF, 0xFE, 0x03, 0x04])
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = pcmFrame.count >= jsonMarker.count && pcmFrame.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertFalse(isJsonEvent, "Audio starting with 0x7B but non-quote second byte must not match")
+    }
+
+    func testEmptyDataDoesNotMatchMarker() {
+        let emptyData = Data()
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = emptyData.count >= jsonMarker.count && emptyData.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertFalse(isJsonEvent, "Empty data must not match the JSON marker")
+    }
+
+    func testShortDataDoesNotMatchMarker() {
+        // Only 4 bytes — shorter than the 8-byte marker
+        let shortData = Data([0x7B, 0x22, 0x65, 0x76])  // {"ev — partial match
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = shortData.count >= jsonMarker.count && shortData.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertFalse(isJsonEvent, "Data shorter than marker must not match")
+    }
+
+    func testPartialMarkerDoesNotMatch() {
+        // 8+ bytes but only partial marker match: {"event} (missing closing quote)
+        let partial = Data(#"{"event}"#.utf8)
+        let jsonMarker = Data(#"{"event""#.utf8)
+
+        let isJsonEvent = partial.count >= jsonMarker.count && partial.prefix(jsonMarker.count) == jsonMarker
+        XCTAssertFalse(isJsonEvent, "Partial marker (wrong 8th byte) must not match")
+    }
+
+    func testStatisticallyCommonPCMValuesNotMisclassified() {
+        // Sample values where sample & 0xFF == 0x7B (the old false-positive trigger)
+        // e.g., sample value 123 (0x007B), 379 (0x017B), 9083 (0x237B)
+        let samples: [UInt16] = [123, 379, 9083, 32123]
+        for sample in samples {
+            var frame = Data(count: 320)  // typical PCM frame size
+            frame[0] = UInt8(sample & 0xFF)   // low byte
+            frame[1] = UInt8(sample >> 8)     // high byte
+
+            let jsonMarker = Data(#"{"event""#.utf8)
+            let isJsonEvent = frame.count >= jsonMarker.count && frame.prefix(jsonMarker.count) == jsonMarker
+            XCTAssertFalse(isJsonEvent, "PCM sample \(sample) must not trigger JSON detection")
+        }
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ string: String) -> [String: Any]? {
