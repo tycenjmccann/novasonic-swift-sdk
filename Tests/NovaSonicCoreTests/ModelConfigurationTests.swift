@@ -230,15 +230,19 @@ final class SessionUpdateTests: XCTestCase {
 
     // MARK: - Session Update Event Serialization
 
+    private func sessionFromParsed(_ parsed: [String: Any]) -> [String: Any]? {
+        let event = parsed["event"] as? [String: Any]
+        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
+        return sessionUpdate?["session"] as? [String: Any]
+    }
+
     func testSessionUpdateEventWithReplaceOnly() throws {
         let json = BedrockEvents.sessionUpdateEvent(replace: ["Acme Mobile": "Acme Mobull"])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertEqual(session?["replace"] as? [String: String], ["Acme Mobile": "Acme Mobull"])
         XCTAssertNil(session?["audio"])
     }
@@ -248,10 +252,8 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertEqual(session?["replace"] as? [String: String], [:])
     }
 
@@ -260,10 +262,8 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertNil(session?["replace"])
 
         let audio = session?["audio"] as? [String: Any]
@@ -278,10 +278,8 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertNil(session?["replace"])
 
         let audio = session?["audio"] as? [String: Any]
@@ -300,10 +298,8 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertEqual(session?["replace"] as? [String: String], ["NovaSonic": "Nova Sonic"])
 
         let audio = session?["audio"] as? [String: Any]
@@ -318,13 +314,9 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
         XCTAssertNotNil(session)
-        XCTAssertNil(session?["replace"])
-        XCTAssertNil(session?["audio"])
+        XCTAssertTrue(session!.isEmpty)
     }
 
     func testSessionUpdateEventEmptyKeytermsOmitsKey() throws {
@@ -332,10 +324,7 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
         XCTAssertNotNil(session)
         XCTAssertNil(session?["audio"])
     }
@@ -350,10 +339,8 @@ final class SessionUpdateTests: XCTestCase {
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(parsed["type"])
-        let event = parsed["event"] as? [String: Any]
-        let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-        let session = sessionUpdate?["session"] as? [String: Any]
+        let session = sessionFromParsed(parsed)
+        XCTAssertNotNil(session)
         XCTAssertEqual(session?["replace"] as? [String: String], ["Hello": "Hey"])
 
         let audio = session?["audio"] as? [String: Any]
@@ -368,9 +355,7 @@ final class SessionUpdateTests: XCTestCase {
             let json = BedrockEvents.sessionUpdateEvent(languageHint: tag)
             let data = json.data(using: .utf8)!
             let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-            let event = parsed["event"] as? [String: Any]
-            let sessionUpdate = event?["sessionUpdate"] as? [String: Any]
-            let session = sessionUpdate?["session"] as? [String: Any]
+            let session = sessionFromParsed(parsed)
             let audio = session?["audio"] as? [String: Any]
             let input = audio?["input"] as? [String: Any]
             let transcription = input?["transcription"] as? [String: Any]

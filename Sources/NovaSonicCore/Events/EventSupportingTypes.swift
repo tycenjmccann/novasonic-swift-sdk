@@ -84,12 +84,12 @@ public struct NovaSonicToolSpec {
 
 // MARK: - Session Update
 
-/// Builds the JSON payload for a `session.update` event wrapped in the
-/// standard event envelope: `{"event": {"sessionUpdate": {"session": {...}}}}`.
+/// Builds the JSON payload for a `session.update` event wrapped in the event envelope.
 ///
-/// `replace` and `audio.input.transcription` are siblings inside the `session`
-/// object. Only non-nil fields are included (sparse update semantics).
-/// If all fields are nil/empty, produces `{"event": {"sessionUpdate": {"session": {}}}}`.
+/// The payload structure is `{"event":{"sessionUpdate":{"session":{...}}}}`.
+/// `replace` and `audio.input.transcription` are siblings inside `session`.
+/// Only non-nil fields are included (sparse update semantics).
+/// All nil produces `{"event":{"sessionUpdate":{"session":{}}}}`.
 public struct SessionUpdateEvent {
     public let replace: [String: String]?
     public let languageHint: String?
