@@ -54,7 +54,8 @@ public struct NovaSonicConfiguration {
     
     /// Language hint for input transcription (Nova 2.0)
     /// A BCP-47 language tag (e.g., `"ja"`, `"es-MX"`, `"pt-BR"`) that helps
-    /// the transcription model. No client-side validation beyond non-empty.
+    /// the transcription model. Bare `"es"` and `"pt"` are rejected — use a
+    /// regional variant like `"es-MX"` or `"pt-BR"` instead (FR-2.4).
     public let languageHint: String?
     
     /// Key terms for improved transcription accuracy (Nova 2.0)
@@ -504,6 +505,21 @@ extension NovaSonicConfiguration {
                     throw NovaSonicError.invalidConfiguration
                 }
             }
+        }
+        
+        // Validate languageHint — reject bare "es" and "pt" per FR-2.4
+        if let languageHint = languageHint {
+            try NovaSonicConfiguration.validateLanguageHint(languageHint)
+        }
+    }
+    
+    /// Validates a languageHint value. Rejects bare "es" and "pt" (case-insensitive)
+    /// as ambiguous per FR-2.4. All other non-empty strings pass — we do NOT reject
+    /// well-formed BCP-47 tags other than the two special-cased codes (FR-2.6).
+    public static func validateLanguageHint(_ hint: String) throws {
+        let lower = hint.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if lower == "es" || lower == "pt" {
+            throw NovaSonicError.invalidLanguageHint(hint)
         }
     }
 }

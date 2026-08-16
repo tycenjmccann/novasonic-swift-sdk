@@ -7,6 +7,7 @@ public enum NovaSonicError: Error, LocalizedError {
     case toolExecutionFailed(String)
     case sessionTimeout
     case invalidConfiguration
+    case invalidLanguageHint(String)
     case streamingError(String)
     case audioSessionError(String)
     case invalidResponse(String)
@@ -37,6 +38,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Conversation session has timed out"
         case .invalidConfiguration:
             return "Invalid Nova Sonic configuration"
+        case .invalidLanguageHint(let hint):
+            return "Invalid language hint '\(hint)'. Bare language codes 'es' and 'pt' are ambiguous — use a regional variant like 'es-MX', 'es-ES', 'pt-BR', or 'pt-PT' instead."
         case .streamingError(let message):
             return "Streaming error: \(message)"
         case .audioSessionError(let message):
@@ -80,6 +83,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Start a new conversation session"
         case .invalidConfiguration:
             return "Check your Nova Sonic configuration settings"
+        case .invalidLanguageHint:
+            return "Use a regional variant such as 'es-MX', 'es-ES', 'pt-BR', or 'pt-PT'"
         case .streamingError, .audioSessionError:
             return "Try restarting the conversation"
         case .invalidResponse:
@@ -111,7 +116,7 @@ public enum NovaSonicError: Error, LocalizedError {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
-        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .invalidLanguageHint, .microphoneNotAvailable:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable

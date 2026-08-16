@@ -375,6 +375,11 @@ public class NovaSonicStreamManager: ObservableObject {
             }
         }
         
+        // Validate languageHint — reject bare "es" and "pt" per FR-2.4
+        if let languageHint = languageHint {
+            try NovaSonicConfiguration.validateLanguageHint(languageHint)
+        }
+        
         let eventJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
         
         NovaSonicLogger.verbose("Sending session.update event")
