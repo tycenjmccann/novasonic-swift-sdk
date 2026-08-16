@@ -45,6 +45,16 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertThrowsError(try config.validate(), "Bare 'PT' (uppercase) must be rejected")
     }
 
+    func testValidateRejectsEmptyLanguageHint() {
+        let config = NovaSonicConfiguration(languageHint: "")
+        XCTAssertThrowsError(try config.validate(), "Empty languageHint must be rejected")
+    }
+
+    func testValidateRejectsWhitespaceLanguageHint() {
+        let config = NovaSonicConfiguration(languageHint: "   ")
+        XCTAssertThrowsError(try config.validate(), "Whitespace-only languageHint must be rejected")
+    }
+
     func testValidateAcceptsRegionalEs() {
         let config = NovaSonicConfiguration(languageHint: "es-MX")
         XCTAssertNoThrow(try config.validate())
@@ -157,6 +167,42 @@ final class SessionUpdateTests: XCTestCase {
         let transcription = input["transcription"] as! [String: Any]
         XCTAssertEqual(transcription["language_hint"] as? String, "en-US")
         XCTAssertNil(transcription["keyterms"])
+    }
+
+    func testSessionUpdateEventReturnsNilForEmptyDict() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: [:],
+            languageHint: nil,
+            keyterms: nil
+        )
+        XCTAssertNil(json, "Empty pronunciationReplacements dict should not produce an event")
+    }
+
+    func testSessionUpdateEventReturnsNilForEmptyArray() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: nil,
+            languageHint: nil,
+            keyterms: []
+        )
+        XCTAssertNil(json, "Empty keyterms array should not produce an event")
+    }
+
+    func testSessionUpdateEventReturnsNilForEmptyStringHint() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: nil,
+            languageHint: "",
+            keyterms: nil
+        )
+        XCTAssertNil(json, "Empty languageHint should not produce an event")
+    }
+
+    func testSessionUpdateEventReturnsNilForWhitespaceHint() {
+        let json = BedrockEvents.sessionUpdateEvent(
+            pronunciationReplacements: nil,
+            languageHint: "   ",
+            keyterms: nil
+        )
+        XCTAssertNil(json, "Whitespace-only languageHint should not produce an event")
     }
 
     func testSessionUpdateEventWithOnlyReplacements() throws {

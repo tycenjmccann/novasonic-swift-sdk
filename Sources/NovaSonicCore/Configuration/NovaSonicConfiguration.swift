@@ -490,8 +490,11 @@ extension NovaSonicConfiguration {
             throw NovaSonicError.invalidConfiguration
         }
 
-        // Validate languageHint (if set, reject bare "es" and "pt" — must be regional variant)
+        // Validate languageHint (if set, must not be empty/whitespace, and reject bare "es"/"pt")
         if let hint = languageHint {
+            guard !hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw NovaSonicError.invalidConfiguration
+            }
             let bareCodesRequiringRegion = ["es", "pt"]
             if bareCodesRequiringRegion.contains(hint.lowercased()) {
                 throw NovaSonicError.invalidConfiguration

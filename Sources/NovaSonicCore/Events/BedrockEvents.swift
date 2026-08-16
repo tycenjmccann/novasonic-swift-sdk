@@ -305,9 +305,10 @@ public struct BedrockEvents {
         languageHint: String?,
         keyterms: [String]?
     ) -> String? {
-        guard pronunciationReplacements != nil || languageHint != nil || keyterms != nil else {
-            return nil
-        }
+        let hasReplacements = pronunciationReplacements != nil && !pronunciationReplacements!.isEmpty
+        let hasHint = languageHint != nil && !languageHint!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasTerms = keyterms != nil && !keyterms!.isEmpty
+        guard hasReplacements || hasHint || hasTerms else { return nil }
 
         var sessionUpdate: [String: Any] = [:]
 

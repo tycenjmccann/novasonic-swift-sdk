@@ -353,6 +353,29 @@ public class NovaSonicStreamManager: ObservableObject {
             throw NovaSonicError.streamingError("Cannot send session update - session not active")
         }
 
+        // Validate languageHint
+        if let hint = languageHint {
+            guard !hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            let bareCodesRequiringRegion = ["es", "pt"]
+            if bareCodesRequiringRegion.contains(hint.lowercased()) {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // Validate keyterms
+        if let terms = keyterms {
+            guard terms.count <= 100 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+            for term in terms {
+                guard term.count <= 50 else {
+                    throw NovaSonicError.invalidConfiguration
+                }
+            }
+        }
+
         guard let eventJson = BedrockEvents.sessionUpdateEvent(
             pronunciationReplacements: pronunciationReplacements,
             languageHint: languageHint,
