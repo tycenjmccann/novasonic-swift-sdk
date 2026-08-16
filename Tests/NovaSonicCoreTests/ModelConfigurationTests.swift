@@ -315,19 +315,19 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertNil(parsed["session"])
     }
 
-    func testSessionUpdateEventEmptyKeytermsClearsField() throws {
+    func testSessionUpdateEventEmptyKeytermsSendsEmptyArray() throws {
         let json = BedrockEvents.sessionUpdateEvent(keyterms: [])
         let data = json.data(using: .utf8)!
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
         XCTAssertEqual(parsed["type"] as? String, "session.update")
-        // Empty keyterms array must be included to explicitly clear the field
+        // Empty keyterms should produce the session subtree with an empty array to clear server-side values
         let session = parsed["session"] as? [String: Any]
-        XCTAssertNotNil(session)
         let audio = session?["audio"] as? [String: Any]
         let input = audio?["input"] as? [String: Any]
         let transcription = input?["transcription"] as? [String: Any]
-        XCTAssertEqual(transcription?["keyterms"] as? [String], [])
+        XCTAssertNotNil(transcription, "session subtree must exist when keyterms is empty array")
+        XCTAssertEqual(transcription?["keyterms"] as? [String], [], "empty keyterms array must be serialized to clear server-side values")
     }
 
     func testSessionUpdateEventNilKeytermsOmitsKey() throws {
@@ -336,7 +336,7 @@ final class SessionUpdateTests: XCTestCase {
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
         XCTAssertEqual(parsed["type"] as? String, "session.update")
-        // nil keyterms should NOT produce a session subtree
+        // nil keyterms must not produce a session subtree (sparse update semantics)
         XCTAssertNil(parsed["session"])
     }
 
