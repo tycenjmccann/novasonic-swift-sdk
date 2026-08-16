@@ -349,6 +349,10 @@ public class NovaSonicStreamManager: ObservableObject {
             throw NovaSonicError.streamingError("Cannot update session - session not active")
         }
 
+        guard replace != nil || languageHint != nil || keyterms != nil else {
+            return
+        }
+
         // Validate languageHint
         if let hint = languageHint {
             let supportedLanguages = ["en", "ja", "zh", "fr", "de", "hi", "ar-EG", "ar-SA", "ar-AE", "bn", "id", "it", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi"]
