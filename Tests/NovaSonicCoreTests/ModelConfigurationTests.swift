@@ -158,3 +158,189 @@ final class SessionMetricsTests: XCTestCase {
         XCTAssertEqual(decoded, m)
     }
 }
+
+// MARK: - Session Configuration New Features Tests
+
+/// Tests for pronunciation replacements, language hint, and keyterms (TEAM-2441).
+final class SessionConfigNewFeaturesTests: XCTestCase {
+
+    // MARK: - Replace (PR-01 through PR-05)
+
+    func testReplaceNilOmitsField() {
+        let event = SessionStartEvent(replace: nil)
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("\"replace\""))
+    }
+
+    func testReplaceEmptyDictOmitsField() {
+        let event = SessionStartEvent(replace: [:])
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("\"replace\""))
+    }
+
+    func testReplaceNonNilSerializesCorrectly() {
+        let event = SessionStartEvent(replace: ["Acme": "Akmee"])
+        let json = event.buildEvent()
+        XCTAssertTrue(json.contains("\"replace\""))
+        XCTAssertTrue(json.contains("\"Acme\""))
+        XCTAssertTrue(json.contains("\"Akmee\""))
+    }
+
+    func testReplaceMixedCasePreserved() {
+        let event = SessionStartEvent(replace: ["NovaSonic": "Nova Sonnic"])
+        let json = event.buildEvent()
+        XCTAssertTrue(json.contains("NovaSonic"))
+        XCTAssertTrue(json.contains("Nova Sonnic"))
+    }
+
+    // MARK: - LanguageHint (LH-02 through LH-07)
+
+    func testLanguageHintNilOmitsField() {
+        let event = SessionStartEvent(languageHint: nil)
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("language_hint"))
+    }
+
+    func testLanguageHintSerializesCorrectPath() {
+        let event = SessionStartEvent(languageHint: "es-MX")
+        let json = event.buildEvent()
+        XCTAssertTrue(json.contains("audioInputConfiguration"))
+        XCTAssertTrue(json.contains("transcription"))
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("es-MX"))
+    }
+
+    func testLanguageHintBareEsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testLanguageHintBarePtRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testLanguageHintBareEsUppercaseRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "ES")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testLanguageHintBarePtUppercaseRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "PT")
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testLanguageHintJaAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "ja")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintEnAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "en")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintFrAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "fr")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testLanguageHintRegionalVariantsAccepted() {
+        for hint in ["es-MX", "pt-BR", "en-US", "fr-FR"] {
+            let cfg = NovaSonicConfiguration(languageHint: hint)
+            XCTAssertNoThrow(try cfg.validate(), "\(hint) should be accepted")
+        }
+    }
+
+    // MARK: - Keyterms (KT-02 through KT-07)
+
+    func testKeytermsNilOmitsField() {
+        let event = SessionStartEvent(keyterms: nil)
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("keyterms"))
+    }
+
+    func testKeytermsEmptyArrayOmitsField() {
+        let event = SessionStartEvent(keyterms: [])
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("keyterms"))
+    }
+
+    func testKeytermsSerializesCorrectPath() {
+        let event = SessionStartEvent(keyterms: ["NovaSonic", "Bedrock"])
+        let json = event.buildEvent()
+        XCTAssertTrue(json.contains("audioInputConfiguration"))
+        XCTAssertTrue(json.contains("transcription"))
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("NovaSonic"))
+        XCTAssertTrue(json.contains("Bedrock"))
+    }
+
+    func testKeytermsOver100Rejected() {
+        let terms = (0...100).map { "term\($0)" } // 101 entries
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testKeytermsExactly100Accepted() {
+        let terms = (0..<100).map { "term\($0)" } // exactly 100
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermsOver50CharsRejected() {
+        let longTerm = String(repeating: "a", count: 51)
+        let cfg = NovaSonicConfiguration(keyterms: [longTerm])
+        XCTAssertThrowsError(try cfg.validate())
+    }
+
+    func testKeytermsExactly50CharsAccepted() {
+        let term = String(repeating: "a", count: 50)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testKeytermsDuplicatesPreserved() {
+        let event = SessionStartEvent(keyterms: ["dup", "dup", "dup"])
+        let json = event.buildEvent()
+        // Count occurrences of "dup" in the keyterms array portion
+        let count = json.components(separatedBy: "\"dup\"").count - 1
+        XCTAssertEqual(count, 3)
+    }
+
+    // MARK: - Cross-Cutting (CC-01, CC-03)
+
+    func testAllThreeFieldsCombined() {
+        let event = SessionStartEvent(
+            replace: ["Hello": "Hola"],
+            languageHint: "en-US",
+            keyterms: ["NovaSonic"]
+        )
+        let json = event.buildEvent()
+        XCTAssertTrue(json.contains("\"replace\""))
+        XCTAssertTrue(json.contains("language_hint"))
+        XCTAssertTrue(json.contains("keyterms"))
+        XCTAssertTrue(json.contains("\"Hello\""))
+        XCTAssertTrue(json.contains("\"Hola\""))
+        XCTAssertTrue(json.contains("en-US"))
+        XCTAssertTrue(json.contains("NovaSonic"))
+    }
+
+    func testBackwardCompatibilityDefaultInit() {
+        // Old-style init with no new params should still compile and work
+        let cfg = NovaSonicConfiguration()
+        XCTAssertNil(cfg.replace)
+        XCTAssertNil(cfg.languageHint)
+        XCTAssertNil(cfg.keyterms)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testBackwardCompatibilitySessionStartEvent() {
+        // Old-style SessionStartEvent init should still work
+        let event = SessionStartEvent(maxTokens: 1024, topP: 0.9, temperature: 0.7)
+        let json = event.buildEvent()
+        XCTAssertFalse(json.contains("\"replace\""))
+        XCTAssertFalse(json.contains("language_hint"))
+        XCTAssertFalse(json.contains("keyterms"))
+    }
+}

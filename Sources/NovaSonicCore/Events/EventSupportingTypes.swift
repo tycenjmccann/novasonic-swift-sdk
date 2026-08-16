@@ -23,12 +23,18 @@ public struct SessionStartEvent: EventBuilder {
     public let topP: Double
     public let temperature: Double
     public let endpointingSensitivity: String?  // Nova 2.0
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
 
-    public init(maxTokens: Int = 1024, topP: Double = 0.9, temperature: Double = 0.7, endpointingSensitivity: String? = nil) {
+    public init(maxTokens: Int = 1024, topP: Double = 0.9, temperature: Double = 0.7, endpointingSensitivity: String? = nil, replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) {
         self.maxTokens = maxTokens
         self.topP = topP
         self.temperature = temperature
         self.endpointingSensitivity = endpointingSensitivity
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
     }
 
     public static func buildEvent() -> String {
@@ -53,6 +59,54 @@ public struct SessionStartEvent: EventBuilder {
             ,
                     "turnDetectionConfiguration": {
                         "endpointingSensitivity": "\(sensitivity)"
+                    }
+            """
+        }
+
+        // Add pronunciation replacements if provided (non-nil and non-empty)
+        if let replaceDict = replace, !replaceDict.isEmpty {
+            if let data = try? JSONSerialization.data(withJSONObject: replaceDict, options: [.sortedKeys]),
+               let replaceJSON = String(data: data, encoding: .utf8) {
+                json += """
+                ,
+                        "replace": \(replaceJSON)
+                """
+            }
+        }
+
+        // Add audio input configuration (language_hint and/or keyterms)
+        let hasLanguageHint = languageHint != nil
+        let hasKeyterms = keyterms != nil && !(keyterms?.isEmpty ?? true)
+
+        if hasLanguageHint || hasKeyterms {
+            json += """
+            ,
+                    "audioInputConfiguration": {
+                        "transcription": {
+            """
+
+            var transcriptionFields: [String] = []
+
+            if let hint = languageHint {
+                transcriptionFields.append("""
+                            "language_hint": "\(hint)"
+                """)
+            }
+
+            if let terms = keyterms, !terms.isEmpty {
+                if let data = try? JSONSerialization.data(withJSONObject: terms),
+                   let termsJSON = String(data: data, encoding: .utf8) {
+                    transcriptionFields.append("""
+                            "keyterms": \(termsJSON)
+                    """)
+                }
+            }
+
+            json += transcriptionFields.joined(separator: ",\n")
+
+            json += """
+
+                        }
                     }
             """
         }

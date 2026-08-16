@@ -44,6 +44,23 @@ public struct NovaSonicConfiguration {
     /// If provided, sends text instead of audio for speakFirst
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
+
+    /// Pronunciation replacement dictionary (Nova 2.0)
+    /// Maps text to alternative pronunciations that alter spoken audio output
+    /// without modifying the transcript. Example: ["Acme Mobile": "Acme Mobull"]
+    public let replace: [String: String]?
+
+    /// BCP-47 language code hint for transcription bias (Nova 2.0)
+    /// Biases the transcription engine toward a particular language.
+    /// Requires regional variant for Spanish ("es-MX") and Portuguese ("pt-BR").
+    /// Example: "en-US", "ja", "es-MX"
+    public let languageHint: String?
+
+    /// Domain-specific vocabulary terms for transcription bias (Nova 2.0)
+    /// Improves transcription accuracy for specialized terms.
+    /// Maximum 100 entries, each ≤ 50 characters.
+    /// Example: ["NovaSonic", "Bedrock", "Acme"]
+    public let keyterms: [String]?
     
     // MARK: - Audio Configuration
     
@@ -102,6 +119,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         historyManager: NovaSonicHistoryManager? = nil,
@@ -122,6 +142,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.historyManager = historyManager
@@ -151,6 +174,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
@@ -173,6 +199,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.audioSessionCategory = audioSessionCategory
@@ -463,6 +492,24 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate languageHint (reject bare "es" and "pt" — require regional variant)
+        if let hint = languageHint {
+            let bare = hint.lowercased()
+            if bare == "es" || bare == "pt" {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+
+        // Validate keyterms (max 100 entries, each ≤ 50 characters)
+        if let terms = keyterms {
+            if terms.count > 100 {
+                throw NovaSonicError.invalidConfiguration
+            }
+            if terms.contains(where: { $0.count > 50 }) {
+                throw NovaSonicError.invalidConfiguration
+            }
         }
     }
 }

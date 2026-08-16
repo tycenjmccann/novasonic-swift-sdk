@@ -24,8 +24,8 @@ public struct BedrockEvents {
 
     // MARK: - Initialization Events
 
-    public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil) -> String {
-        return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
+    public static func sessionStartEvent(temperature: Double = 0.7, topP: Double = 0.9, maxTokens: Int = 1024, endpointingSensitivity: String? = nil, replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) -> String {
+        return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity, replace: replace, languageHint: languageHint, keyterms: keyterms).buildEvent()
     }
 
     public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {

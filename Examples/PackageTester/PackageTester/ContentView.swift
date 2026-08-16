@@ -75,6 +75,8 @@ struct ContentView: View {
             endpointingSensitivity: .low, //Nova 2.0
             enableParalinguisticDetection: true,
             initialTextPrompt: "Hey, I'm Tycen",
+            replace: ["Nova Sonic": "Nova Sonnic"],
+            keyterms: ["NovaSonic", "Bedrock", "DynamoDB"],
             enableDynamoDBHistory: true,
             dynamoDBTableName: "nova_sonic_chat_history",
             dynamoDBUserId: "user123",
