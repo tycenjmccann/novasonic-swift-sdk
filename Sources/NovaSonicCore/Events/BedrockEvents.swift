@@ -28,7 +28,7 @@ public struct BedrockEvents {
         return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
     }
 
-    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {
+    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000, outputTransport: String = "json") -> String {
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
 
         let toolsArray = toolSpecs.map { spec in
@@ -57,7 +57,8 @@ public struct BedrockEvents {
                         "channelCount": 1,
                         "voiceId": voiceId,
                         "encoding": "base64",
-                        "audioType": "SPEECH"
+                        "audioType": "SPEECH",
+                        "transport": outputTransport
                     ],
                     "toolUseOutputConfiguration": [
                         "mediaType": "application/json"
@@ -194,7 +195,7 @@ public struct BedrockEvents {
 
     // MARK: - Audio Streaming Events
 
-    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000) -> String {
+    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, inputTransport: String = "json") -> String {
         """
         {
             "event": {
@@ -210,7 +211,8 @@ public struct BedrockEvents {
                         "sampleSizeBits": 16,
                         "channelCount": 1,
                         "audioType": "SPEECH",
-                        "encoding": "base64"
+                        "encoding": "base64",
+                        "transport": "\(inputTransport)"
                     }
                 }
             }
@@ -231,6 +233,11 @@ public struct BedrockEvents {
             }
         }
         """
+    }
+
+    /// Returns raw audio data for binary WebSocket transport (no base64 encoding, no JSON wrapping)
+    public static func binaryAudioInputData(audioData: Data) -> Data {
+        return audioData
     }
 
     public static func audioContentEndEvent(promptName: String, audioContentName: String) -> String {

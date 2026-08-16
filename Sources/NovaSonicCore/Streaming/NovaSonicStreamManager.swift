@@ -480,7 +480,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 var textInitEvents: [(String, String)] = [
                     // Nova Sonic 1 rejects endpointing sensitivity config — omit it there.
                     (BedrockEvents.sessionStartEvent(temperature: configuration!.temperature, topP: configuration!.topP, maxTokens: configuration!.maxTokens, endpointingSensitivity: configuration!.model == .novaSonic1 ? nil : configuration!.endpointingSensitivity.rawValue), "sessionStart"),
-                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz), "promptStart"),
+                    (BedrockEvents.promptStartEvent(promptName: promptName, voiceId: selectedVoice.rawValue, outputSampleRate: configuration!.outputSampleRate.hertz, outputTransport: configuration!.outputTransport.rawValue), "promptStart"),
                     (BedrockEvents.systemTextContentStartEvent(promptName: promptName, contentName: contentName), "systemTextContentStart"),
                     (BedrockEvents.textInputEvent(promptName: promptName, contentName: contentName, content: configuration!.systemPrompt), "textInput"),
                     (BedrockEvents.contentEndEvent(promptName: promptName, contentName: contentName), "contentEnd")
@@ -530,7 +530,7 @@ public class NovaSonicStreamManager: ObservableObject {
                 }
                 
                 // Send the audio initialization event.
-                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz)
+                let audioInitEvent = BedrockEvents.audioContentStartEvent(promptName: promptName, audioContentName: audioContentName, inputSampleRate: configuration!.inputSampleRate.hertz, inputTransport: configuration!.inputTransport.rawValue)
                 yieldEvent(audioInitEvent, label: "audioContentStart")
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 
@@ -575,18 +575,26 @@ public class NovaSonicStreamManager: ObservableObject {
                         let promptName = strongSelf.promptName
                         let audioContentName = strongSelf.audioContentName
                         
-                        let json = BedrockEvents.audioInputEvent(
-                            audioData: chunkData,
-                            promptName: promptName,
-                            audioContentName: audioContentName
-                        )
-                        
-                        // Send the audio chunk to the stream
-                        continuation.yield(
-                            .chunk(
-                                .init(bytes: Data(json.utf8))
+                        if strongSelf.configuration?.inputTransport == .binary {
+                            // Binary transport: send raw PCM data directly
+                            continuation.yield(
+                                .chunk(
+                                    .init(bytes: chunkData)
+                                )
                             )
-                        )
+                        } else {
+                            // JSON transport: base64-encode and wrap in JSON (default)
+                            let json = BedrockEvents.audioInputEvent(
+                                audioData: chunkData,
+                                promptName: promptName,
+                                audioContentName: audioContentName
+                            )
+                            continuation.yield(
+                                .chunk(
+                                    .init(bytes: Data(json.utf8))
+                                )
+                            )
+                        }
                     }
                     NovaSonicLogger.verbose("🎙️ Audio recording started successfully!")
                 } catch {
@@ -686,7 +694,27 @@ public class NovaSonicStreamManager: ObservableObject {
                     // Skip empty responses silently
                     continue
                 }
-                
+
+                // Binary frame detection: when output transport is binary,
+                // non-JSON data is raw PCM audio from the server
+                if configuration?.outputTransport == .binary {
+                    let peek = String(decoding: bytes.prefix(1), as: UTF8.self)
+                    if peek != "{" {
+                        // Raw binary audio frame - route directly to playback
+                        if isStreaming {
+                            if sessionMetrics?.turns.last?.firstAudioChunkAt == nil {
+                                withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
+                            }
+                            #if IOS_AUDIO
+                            Task {
+                                try await audioManager.playAudio(bytes)
+                            }
+                            #endif
+                        }
+                        continue
+                    }
+                }
+
                 // Log first few responses to see what we're getting
                 if responseCount <= 5 {
                     let _ = String(decoding: bytes, as: UTF8.self)
