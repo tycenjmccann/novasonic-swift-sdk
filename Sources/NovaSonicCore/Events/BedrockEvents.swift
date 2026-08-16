@@ -28,7 +28,7 @@ public struct BedrockEvents {
         return SessionStartEvent(maxTokens: maxTokens, topP: topP, temperature: temperature, endpointingSensitivity: endpointingSensitivity).buildEvent()
     }
 
-    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000, outputTransport: AudioTransportMode = .json) -> String {
+    public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000) -> String {
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
 
         let toolsArray = toolSpecs.map { spec in
@@ -43,8 +43,6 @@ public struct BedrockEvents {
             ]
         }
 
-        let encoding: String = outputTransport == .json ? "base64" : "raw"
-
         let event: [String: Any] = [
             "event": [
                 "promptStart": [
@@ -58,9 +56,8 @@ public struct BedrockEvents {
                         "sampleSizeBits": 16,
                         "channelCount": 1,
                         "voiceId": voiceId,
-                        "encoding": encoding,
-                        "audioType": "SPEECH",
-                        "transport": outputTransport.rawValue
+                        "encoding": "base64",
+                        "audioType": "SPEECH"
                     ],
                     "toolUseOutputConfiguration": [
                         "mediaType": "application/json"
@@ -197,9 +194,7 @@ public struct BedrockEvents {
 
     // MARK: - Audio Streaming Events
 
-    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, inputTransport: AudioTransportMode = .json) -> String {
-        let encoding: String = inputTransport == .json ? "base64" : "raw"
-
+    public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000) -> String {
         let event: [String: Any] = [
             "event": [
                 "contentStart": [
@@ -214,8 +209,7 @@ public struct BedrockEvents {
                         "sampleSizeBits": 16,
                         "channelCount": 1,
                         "audioType": "SPEECH",
-                        "encoding": encoding,
-                        "transport": inputTransport.rawValue
+                        "encoding": "base64"
                     ]
                 ]
             ]
@@ -237,11 +231,6 @@ public struct BedrockEvents {
             }
         }
         """
-    }
-
-    /// Returns raw audio Data for binary transport mode (no JSON wrapping)
-    public static func binaryAudioInputData(audioData: Data) -> Data {
-        return audioData
     }
 
     public static func audioContentEndEvent(promptName: String, audioContentName: String) -> String {
@@ -309,19 +298,41 @@ public struct BedrockEvents {
 
     // MARK: - Session Update Events
 
-    public static func sessionUpdateEvent(transcription: TranscriptionConfig) -> String {
-        var inputTranscription: [String: Any] = [
-            "partialResultsEnabled": transcription.partialResultsEnabled
-        ]
-        if !transcription.keyterms.isEmpty {
-            inputTranscription["keyterms"] = transcription.keyterms
+    public static func sessionUpdateEvent(
+        voice: String? = nil,
+        replace: [String: String]? = nil,
+        transcription: TranscriptionConfig? = nil
+    ) -> String {
+        var session: [String: Any] = [:]
+
+        if let voice = voice {
+            session["voice"] = voice
         }
-        let event: [String: Any] = [
-            "event": [
-                "sessionUpdate": [
-                    "inputTranscription": inputTranscription
+
+        if let replace = replace {
+            session["replace"] = replace
+        }
+
+        if let transcription = transcription {
+            var inputTranscription: [String: Any] = [:]
+            if let languageHint = transcription.languageHint {
+                inputTranscription["language_hint"] = languageHint
+            }
+            if let keyterms = transcription.keyterms, !keyterms.isEmpty {
+                inputTranscription["keyterms"] = keyterms
+            }
+            if !inputTranscription.isEmpty {
+                session["audio"] = [
+                    "input": [
+                        "transcription": inputTranscription
+                    ]
                 ]
-            ]
+            }
+        }
+
+        let event: [String: Any] = [
+            "type": "session.update",
+            "session": session
         ]
         return encodeJSON(event)
     }

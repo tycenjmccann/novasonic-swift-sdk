@@ -5,8 +5,8 @@ final class SessionUpdateTests: XCTestCase {
 
     // MARK: - TranscriptionConfig Validation
 
-    func testEmptyKeytermsIsValid() {
-        let config = TranscriptionConfig(partialResultsEnabled: true, keyterms: [])
+    func testNilKeytermsIsValid() {
+        let config = TranscriptionConfig(languageHint: "en-US")
         XCTAssertNoThrow(try config.validate())
     }
 
@@ -40,6 +40,22 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertNoThrow(try config.validate())
     }
 
+    // MARK: - TranscriptionConfig Defaults
+
+    func testTranscriptionConfigDefaults() {
+        let config = TranscriptionConfig()
+        XCTAssertNil(config.languageHint)
+        XCTAssertNil(config.keyterms)
+    }
+
+    func testTranscriptionConfigEquatable() {
+        let a = TranscriptionConfig(languageHint: "en-US", keyterms: ["one"])
+        let b = TranscriptionConfig(languageHint: "en-US", keyterms: ["one"])
+        let c = TranscriptionConfig(languageHint: "es-MX", keyterms: ["one"])
+        XCTAssertEqual(a, b)
+        XCTAssertNotEqual(a, c)
+    }
+
     // MARK: - NovaSonicConfiguration with Transcription
 
     func testConfigurationWithTranscriptionValidates() {
@@ -61,60 +77,135 @@ final class SessionUpdateTests: XCTestCase {
         XCTAssertNoThrow(try config.validate())
     }
 
+    // MARK: - NovaSonicConfiguration with Replace
+
+    func testConfigurationWithReplace() {
+        let config = NovaSonicConfiguration(replace: ["oldWord": "newWord"])
+        XCTAssertEqual(config.replace, ["oldWord": "newWord"])
+        XCTAssertNoThrow(try config.validate())
+    }
+
+    func testConfigurationWithoutReplace() {
+        let config = NovaSonicConfiguration()
+        XCTAssertNil(config.replace)
+    }
+
+    // MARK: - requiresSessionUpdate
+
     func testRequiresSessionUpdateWhenTranscriptionPresent() {
         let config = NovaSonicConfiguration(transcription: TranscriptionConfig())
         XCTAssertTrue(config.requiresSessionUpdate)
     }
 
-    func testDoesNotRequireSessionUpdateWhenNoTranscription() {
+    func testRequiresSessionUpdateWhenReplacePresent() {
+        let config = NovaSonicConfiguration(replace: ["a": "b"])
+        XCTAssertTrue(config.requiresSessionUpdate)
+    }
+
+    func testRequiresSessionUpdateWhenBothPresent() {
+        let config = NovaSonicConfiguration(
+            transcription: TranscriptionConfig(languageHint: "en-US"),
+            replace: ["a": "b"]
+        )
+        XCTAssertTrue(config.requiresSessionUpdate)
+    }
+
+    func testDoesNotRequireSessionUpdateWhenNeitherPresent() {
         let config = NovaSonicConfiguration()
         XCTAssertFalse(config.requiresSessionUpdate)
     }
 
-    // MARK: - BedrockEvents.sessionUpdateEvent
+    // MARK: - BedrockEvents.sessionUpdateEvent JSON structure
 
-    func testSessionUpdateEventContainsExpectedStructure() throws {
-        let transcription = TranscriptionConfig(partialResultsEnabled: true, keyterms: ["AWS", "Bedrock"])
-        let json = BedrockEvents.sessionUpdateEvent(transcription: transcription)
-
-        let data = try XCTUnwrap(json.data(using: .utf8))
-        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let event = try XCTUnwrap(parsed["event"] as? [String: Any])
-        let sessionUpdate = try XCTUnwrap(event["sessionUpdate"] as? [String: Any])
-        let inputTranscription = try XCTUnwrap(sessionUpdate["inputTranscription"] as? [String: Any])
-
-        XCTAssertEqual(inputTranscription["partialResultsEnabled"] as? Bool, true)
-        let keyterms = try XCTUnwrap(inputTranscription["keyterms"] as? [String])
-        XCTAssertEqual(keyterms, ["AWS", "Bedrock"])
-    }
-
-    func testSessionUpdateEventOmitsKeytermsWhenEmpty() throws {
-        let transcription = TranscriptionConfig(partialResultsEnabled: false, keyterms: [])
-        let json = BedrockEvents.sessionUpdateEvent(transcription: transcription)
+    func testSessionUpdateEventHasCorrectTopLevelType() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            voice: "tiffany",
+            replace: ["hello": "hi"],
+            transcription: TranscriptionConfig(languageHint: "en-US", keyterms: ["AWS", "Bedrock"])
+        )
 
         let data = try XCTUnwrap(json.data(using: .utf8))
         let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let event = try XCTUnwrap(parsed["event"] as? [String: Any])
-        let sessionUpdate = try XCTUnwrap(event["sessionUpdate"] as? [String: Any])
-        let inputTranscription = try XCTUnwrap(sessionUpdate["inputTranscription"] as? [String: Any])
 
-        XCTAssertEqual(inputTranscription["partialResultsEnabled"] as? Bool, false)
-        XCTAssertNil(inputTranscription["keyterms"])
+        XCTAssertEqual(parsed["type"] as? String, "session.update")
     }
 
-    // MARK: - TranscriptionConfig Defaults
+    func testSessionUpdateEventHasSessionObject() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            voice: "tiffany",
+            replace: ["hello": "hi"],
+            transcription: TranscriptionConfig(languageHint: "en-US", keyterms: ["AWS", "Bedrock"])
+        )
 
-    func testTranscriptionConfigDefaultPartialResultsEnabled() {
-        let config = TranscriptionConfig()
-        XCTAssertTrue(config.partialResultsEnabled)
-        XCTAssertTrue(config.keyterms.isEmpty)
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap(parsed["session"] as? [String: Any])
+
+        XCTAssertEqual(session["voice"] as? String, "tiffany")
+
+        let replace = try XCTUnwrap(session["replace"] as? [String: String])
+        XCTAssertEqual(replace, ["hello": "hi"])
     }
 
-    func testTranscriptionConfigEquatable() {
-        let a = TranscriptionConfig(partialResultsEnabled: true, keyterms: ["one"])
-        let b = TranscriptionConfig(partialResultsEnabled: true, keyterms: ["one"])
-        let c = TranscriptionConfig(partialResultsEnabled: false, keyterms: ["one"])
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+    func testSessionUpdateEventTranscriptionNested() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            transcription: TranscriptionConfig(languageHint: "es-MX", keyterms: ["Bedrock"])
+        )
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap(parsed["session"] as? [String: Any])
+        let audio = try XCTUnwrap(session["audio"] as? [String: Any])
+        let input = try XCTUnwrap(audio["input"] as? [String: Any])
+        let transcription = try XCTUnwrap(input["transcription"] as? [String: Any])
+
+        XCTAssertEqual(transcription["language_hint"] as? String, "es-MX")
+        let keyterms = try XCTUnwrap(transcription["keyterms"] as? [String])
+        XCTAssertEqual(keyterms, ["Bedrock"])
+    }
+
+    func testSessionUpdateEventOmitsNilFields() throws {
+        let json = BedrockEvents.sessionUpdateEvent(replace: ["a": "b"])
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap(parsed["session"] as? [String: Any])
+
+        XCTAssertNil(session["voice"])
+        XCTAssertNil(session["audio"])
+        XCTAssertNotNil(session["replace"])
+    }
+
+    func testSessionUpdateEventOmitsEmptyKeyterms() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            transcription: TranscriptionConfig(languageHint: "pt-BR", keyterms: [])
+        )
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap(parsed["session"] as? [String: Any])
+        let audio = try XCTUnwrap(session["audio"] as? [String: Any])
+        let input = try XCTUnwrap(audio["input"] as? [String: Any])
+        let transcription = try XCTUnwrap(input["transcription"] as? [String: Any])
+
+        XCTAssertEqual(transcription["language_hint"] as? String, "pt-BR")
+        XCTAssertNil(transcription["keyterms"])
+    }
+
+    func testSessionUpdateEventUsesSnakeCaseKeys() throws {
+        let json = BedrockEvents.sessionUpdateEvent(
+            transcription: TranscriptionConfig(languageHint: "en-US", keyterms: ["test"])
+        )
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap(parsed["session"] as? [String: Any])
+        let audio = try XCTUnwrap(session["audio"] as? [String: Any])
+        let input = try XCTUnwrap(audio["input"] as? [String: Any])
+        let transcription = try XCTUnwrap(input["transcription"] as? [String: Any])
+
+        XCTAssertNotNil(transcription["language_hint"])
+        XCTAssertNotNil(transcription["keyterms"])
+        XCTAssertNil(transcription["languageHint"])
     }
 }

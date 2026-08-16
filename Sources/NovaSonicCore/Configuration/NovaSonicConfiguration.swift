@@ -4,42 +4,32 @@ import SmithyIdentity
 import AVFoundation
 #endif
 
-/// Audio transport mode for WebSocket communication
-public enum AudioTransportMode: String, CaseIterable {
-    case json = "json"       // Default: base64-encoded audio in JSON events
-    case binary = "binary"   // Raw binary WebSocket frames for audio data
-}
-
 /// Configuration for input transcription in session.update
 public struct TranscriptionConfig: Equatable {
-    /// Whether partial transcription results are returned
-    public let partialResultsEnabled: Bool
+    /// BCP-47 language code to bias transcription (e.g., "en-US", "es-MX", "pt-BR")
+    /// Note: Spanish and Portuguese require regional variants
+    public let languageHint: String?
+    /// Domain-specific keyterms (max 100 entries, each ≤50 chars)
+    public let keyterms: [String]?
 
-    /// Keyterms to boost recognition for (max 100 items, each max 50 characters)
-    public let keyterms: [String]
-
-    public init(partialResultsEnabled: Bool = true, keyterms: [String] = []) {
+    public init(languageHint: String? = nil, keyterms: [String]? = nil) {
+        self.languageHint = languageHint
         self.keyterms = keyterms
-        self.partialResultsEnabled = partialResultsEnabled
     }
 
     public func validate() throws {
-        guard keyterms.count <= 100 else {
-            throw NovaSonicError.invalidConfiguration
-        }
-        for term in keyterms {
-            guard term.count <= 50 else {
-                throw NovaSonicError.invalidConfiguration
-            }
+        if let keyterms = keyterms {
+            guard keyterms.count <= 100 else { throw NovaSonicError.invalidConfiguration }
+            guard keyterms.allSatisfy({ $0.count <= 50 }) else { throw NovaSonicError.invalidConfiguration }
         }
     }
 }
 
 /// Configuration for Nova Sonic speech-to-speech interactions
 public struct NovaSonicConfiguration {
-    
+
     // MARK: - Model Configuration
-    
+
     /// AWS region for Nova Sonic (supports us-east-1, us-west-2, ap-northeast-1)
     public let region: String
 
@@ -48,34 +38,34 @@ public struct NovaSonicConfiguration {
 
     /// Voice to use for speech synthesis
     public let voice: NovaSonicVoice
-    
+
     /// Controls randomness in response generation (0.0-1.0)
     public let temperature: Double
-    
+
     /// Controls nucleus sampling for response diversity (0.0-1.0)
     public let topP: Double
-    
+
     /// Maximum tokens in response
     public let maxTokens: Int
-    
+
     /// System prompt for conversation context
     public let systemPrompt: String
-    
+
     // MARK: - Nova 2.0 Features
-    
+
     /// Turn detection sensitivity (Nova 2.0)
     /// Controls how quickly Nova Sonic takes its turn
     public let endpointingSensitivity: EndpointingSensitivity
-    
+
     /// Enable paralinguistic detection (Nova 2.0)
     /// Returns sentiment tags in ASR transcript
     public let enableParalinguisticDetection: Bool
-    
+
     /// Initial text prompt to start conversation (Nova 2.0)
     /// If provided, sends text instead of audio for speakFirst
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
-    
+
     // MARK: - Audio Configuration
 
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -84,55 +74,52 @@ public struct NovaSonicConfiguration {
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
 
-    /// Transport mode for audio input (microphone data sent to the service)
-    public let inputTransport: AudioTransportMode
-
-    /// Transport mode for audio output (audio data received from the service)
-    public let outputTransport: AudioTransportMode
-    
     #if IOS_AUDIO
     /// iOS audio session category
     public let audioSessionCategory: AVAudioSession.Category
-    
+
     /// iOS audio session options
     public let audioSessionOptions: AVAudioSession.CategoryOptions
     #endif
-    
+
     // MARK: - History Management
-    
+
     /// Optional history manager for conversation persistence
     /// Following the same optional and pluggable pattern as tools
     public let historyManager: NovaSonicHistoryManager?
-    
+
     /// Enable built-in DynamoDB history (simple one-line setup)
     public let enableDynamoDBHistory: Bool
-    
+
     /// DynamoDB table name (when using built-in DynamoDB history)
     public let dynamoDBTableName: String
-    
+
     /// User ID for DynamoDB history (required for multi-user apps)
     /// If not provided, defaults to "default-user" for backward compatibility
     public let dynamoDBUserId: String?
-    
+
     /// AWS region for DynamoDB (defaults to same as Nova Sonic)
     public let dynamoDBRegion: String
-    
+
     /// Optional AWS credentials resolver for cross-region authentication
     /// Used for both Bedrock and DynamoDB clients when provided
     public let awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)?
-    
+
     // MARK: - Session Update Configuration
 
     /// Transcription configuration for session.update (optional)
     public let transcription: TranscriptionConfig?
 
+    /// Replace dictionary for session.update (optional)
+    public let replace: [String: String]?
+
     // MARK: - Logging Configuration
 
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
-    
+
     // MARK: - Initialization
-    
+
     public init(
         region: String = "us-east-1",
         model: NovaSonicModel = .novaSonic2,
@@ -146,9 +133,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
-        inputTransport: AudioTransportMode = .json,
-        outputTransport: AudioTransportMode = .json,
         transcription: TranscriptionConfig? = nil,
+        replace: [String: String]? = nil,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -169,9 +155,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
-        self.inputTransport = inputTransport
-        self.outputTransport = outputTransport
         self.transcription = transcription
+        self.replace = replace
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -185,7 +170,7 @@ public struct NovaSonicConfiguration {
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
         #endif
     }
-    
+
     #if IOS_AUDIO
     /// Full initialization with iOS audio session control
     public init(
@@ -201,9 +186,8 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
-        inputTransport: AudioTransportMode = .json,
-        outputTransport: AudioTransportMode = .json,
         transcription: TranscriptionConfig? = nil,
+        replace: [String: String]? = nil,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -226,9 +210,8 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
-        self.inputTransport = inputTransport
-        self.outputTransport = outputTransport
         self.transcription = transcription
+        self.replace = replace
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -245,35 +228,34 @@ public struct NovaSonicConfiguration {
 // MARK: - Preset Configurations
 
 public extension NovaSonicConfiguration {
-    
+
     /// Default configuration for most use cases
     static let `default` = NovaSonicConfiguration()
-    
+
     /// Maximum quality configuration (24kHz input/output)
     static let maxQuality = NovaSonicConfiguration(
         inputSampleRate: .rate24kHz,
         outputSampleRate: .rate24kHz
     )
-    
+
     /// Low bandwidth configuration (8kHz input/output)
     static let lowBandwidth = NovaSonicConfiguration(
         inputSampleRate: .rate8kHz,
         outputSampleRate: .rate8kHz
     )
-    
+
     /// Creative responses configuration
     static let creative = NovaSonicConfiguration(
         temperature: 0.9,
         topP: 0.95
     )
-    
+
     /// Focused responses configuration
     static let focused = NovaSonicConfiguration(
         temperature: 0.3,
         topP: 0.7
     )
-    
-    /// 🎉 ONE-LINE DYNAMODB SETUP!
+
     /// Simple DynamoDB history setup - just provide table name and user ID
     static func withDynamoDBHistory(
         tableName: String = "nova_sonic_chat_history",
@@ -314,9 +296,6 @@ public enum NovaSonicModel: String, CaseIterable, Codable {
     }
 
     /// AWS regions where this model is available (in-region), per the Bedrock model cards.
-    /// - v1: us-east-1, eu-north-1, ap-northeast-1
-    /// - v2: us-east-1, us-west-2, ap-northeast-1
-    /// - 2.5 EA: us-east-1 only (early access)
     public var supportedRegions: [String] {
         switch self {
         case .novaSonic1: return ["us-east-1", "eu-north-1", "ap-northeast-1"]
@@ -332,7 +311,7 @@ public enum EndpointingSensitivity: String, CaseIterable {
     case high = "HIGH"      // Fastest, latency-optimized (default)
     case medium = "MEDIUM"  // Intermediary setting
     case low = "LOW"        // Slowest, waits longest to take turn
-    
+
     public var displayName: String {
         switch self {
         case .high: return "High (Fastest Response)"
@@ -346,31 +325,31 @@ public enum EndpointingSensitivity: String, CaseIterable {
 public enum NovaSonicVoice: String, CaseIterable {
     // US English
     case matthew, tiffany
-    
+
     // UK English
     case amy
-    
+
     // Australian English (Nova 2.0)
     case olivia
-    
+
     // Spanish
     case lupe, carlos
-    
+
     // French (Nova 2.0)
     case florian, ambre
-    
+
     // Italian (Nova 2.0)
     case lorenzo, beatrice
-    
+
     // German (Nova 2.0)
     case lennart, tina, greta
-    
+
     // Portuguese (Nova 2.0)
     case camila, leo
-    
+
     // Hindi (Nova 2.0)
     case aditi, rohan
-    
+
     public var displayName: String {
         switch self {
         case .matthew: return "Matthew"
@@ -392,7 +371,7 @@ public enum NovaSonicVoice: String, CaseIterable {
         case .rohan: return "Rohan"
         }
     }
-    
+
     public var region: String {
         switch self {
         case .matthew, .tiffany: return "US English"
@@ -406,7 +385,7 @@ public enum NovaSonicVoice: String, CaseIterable {
         case .aditi, .rohan: return "Hindi"
         }
     }
-    
+
     public var isPolyglot: Bool {
         switch self {
         case .tiffany: return true  // English, French, Italian, German, Spanish
@@ -421,11 +400,6 @@ public enum NovaSonicVoice: String, CaseIterable {
     }
 
     /// Voices not available on the Nova Sonic 1 model.
-    /// Per AWS's v1 voice list, v1 supports US/UK English, French (ambre, florian),
-    /// Italian (beatrice, lorenzo), German (greta, lennart), and Spanish. Everything
-    /// else — Australian (olivia), the extra German voice (tina), Portuguese, and
-    /// Hindi — was added with Nova 2.0.
-    /// Ref: https://docs.aws.amazon.com/nova/latest/userguide/available-voices.html
     public var isNova2Only: Bool {
         switch self {
         case .matthew, .tiffany, .amy, .lupe, .carlos,
@@ -443,7 +417,7 @@ public enum NovaSonicSampleRate: Int, CaseIterable {
     case rate8kHz = 8000
     case rate16kHz = 16000   // Demo default for input
     case rate24kHz = 24000   // Demo default for output
-    
+
     public var displayName: String {
         switch self {
         case .rate8kHz: return "8 kHz (Low Quality, Low Bandwidth)"
@@ -451,7 +425,7 @@ public enum NovaSonicSampleRate: Int, CaseIterable {
         case .rate24kHz: return "24 kHz (High Quality, Crisper Output)"
         }
     }
-    
+
     public var hertz: Int {
         return self.rawValue
     }
@@ -460,23 +434,23 @@ public enum NovaSonicSampleRate: Int, CaseIterable {
 // MARK: - Convenience Extensions
 
 extension NovaSonicConfiguration {
-    
+
     /// Voice Options
-    
+
     /// - `.matthew` - US English, masculine
-    /// - `.tiffany` - US English, feminine  
+    /// - `.tiffany` - US English, feminine
     /// - `.amy` - UK English, feminine
     /// - `.lupe` - Spanish, feminine
     /// - `.carlos` - Spanish, masculine
-    
+
     /// Sample Rate Options
-    
+
     /// - `.rate8kHz` - 8 kHz (Low bandwidth, basic quality)
     /// - `.rate16kHz` - 16 kHz (Demo default for input, balanced quality)
     /// - `.rate24kHz` - 24 kHz (High quality, crisper output)
-    
+
     /// Model Parameters
-    
+
     /// - `temperature`: 0.1-1.0 (0.1 = focused, 1.0 = creative)
     /// - `topP`: 0.5-1.0 (0.5 = consistent, 1.0 = diverse)
     /// - `maxTokens`: 1-4096 (response length limit)
@@ -487,14 +461,14 @@ extension NovaSonicConfiguration {
 extension NovaSonicConfiguration {
     /// Whether this configuration requires a session.update event at stream start
     public var requiresSessionUpdate: Bool {
-        return transcription != nil
+        return replace != nil || transcription != nil
     }
 }
 
 // MARK: - Validation
 
 extension NovaSonicConfiguration {
-    
+
     /// Validate configuration parameters
     public func validate() throws {
         // Supported regions depend on the model (per AWS model cards).
@@ -512,17 +486,17 @@ extension NovaSonicConfiguration {
         guard temperature >= 0.0 && temperature <= 1.0 else {
             throw NovaSonicError.invalidConfiguration
         }
-        
+
         // Validate topP range
         guard topP >= 0.0 && topP <= 1.0 else {
             throw NovaSonicError.invalidConfiguration
         }
-        
+
         // Validate maxTokens
         guard maxTokens > 0 && maxTokens <= 4096 else {
             throw NovaSonicError.invalidConfiguration
         }
-        
+
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
