@@ -22,7 +22,9 @@ public enum NovaSonicError: Error, LocalizedError {
     case conversionFailed
     case bufferCreationFailed
     case invalidFormat
-    
+    case validationError(String)
+    case sessionNotActive
+
     public var errorDescription: String? {
         switch self {
         case .audioPermissionDenied:
@@ -63,9 +65,13 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Failed to create audio buffer"
         case .invalidFormat:
             return "Invalid audio format"
+        case .validationError(let detail):
+            return "Validation failed: \(detail)"
+        case .sessionNotActive:
+            return "Cannot update session: no active streaming session"
         }
     }
-    
+
     public var recoverySuggestion: String? {
         switch self {
         case .audioPermissionDenied:
@@ -104,14 +110,18 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .invalidFormat:
             return "Try restarting the audio session"
+        case .validationError:
+            return "Correct the invalid parameter value and retry"
+        case .sessionNotActive:
+            return "Call startSession() before sending session updates"
         }
     }
-    
+
     public var isRetryable: Bool {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
-        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable, .validationError, .sessionNotActive:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable
