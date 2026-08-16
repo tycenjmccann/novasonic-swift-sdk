@@ -152,6 +152,23 @@ NovaSonicChatView(
 )
 ```
 
+### Transcription & Pronunciation
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant for Acme customers.",
+    replace: ["Acme Mobile": "Acme Mobull", "NovaSonic": "Nova Sonic"],
+    languageHint: "en-US",
+    keyterms: ["Acme Mobile", "Premium Plan", "SomeProductName"]
+)
+streamManager.configure(with: config)
+```
+
+- **`replace`** — Pronunciation replacement dictionary (e.g. brand names)
+- **`languageHint`** — BCP-47 code (bare `es`/`pt` rejected; use `es-MX`, `pt-BR`, etc.)
+- **`keyterms`** — Domain vocabulary (max 100 items, 50 chars each)
+
 ## Chat Persistence
 
 ### One-Line DynamoDB Setup

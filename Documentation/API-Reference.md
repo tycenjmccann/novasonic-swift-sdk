@@ -197,6 +197,34 @@ protocol NovaSonicHistoryManager {
 }
 ```
 
+## Session Update Properties
+
+These optional properties on `NovaSonicConfiguration` customize transcription and pronunciation. When set, a `session.update` event is sent after initialization and before audio streaming begins.
+
+| Property | Type | Serialization Path |
+|----------|------|--------------------|
+| `replace` | `[String: String]?` | `session.replace` |
+| `languageHint` | `String?` | `session.audio.input.transcription.language_hint` |
+| `keyterms` | `[String]?` | `session.audio.input.transcription.keyterms` |
+
+### Validation Rules
+
+- **`languageHint`** — Must be a BCP-47 regional variant. Bare `es` and `pt` are rejected; use `es-MX`, `es-ES`, `pt-BR`, `pt-PT`, etc.
+- **`keyterms`** — Maximum 100 items. Each term must be non-empty and at most 50 characters.
+- **`replace`** — Keys must be non-empty strings.
+
+### Usage Example
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant for Acme customers.",
+    replace: ["Acme Mobile": "Acme Mobull", "NovaSonic": "Nova Sonic"],
+    languageHint: "en-US",
+    keyterms: ["Acme Mobile", "Premium Plan", "SomeProductName"]
+)
+```
+
 ## Error Types
 
 ```swift
