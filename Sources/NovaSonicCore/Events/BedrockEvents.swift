@@ -29,6 +29,7 @@ public struct BedrockEvents {
     }
 
     public static func promptStartEvent(promptName: String, voiceId: String, outputSampleRate: Int = 24000, outputTransport: String = "json") -> String {
+        let encoding = outputTransport == "json" ? "base64" : "raw"
         let toolSpecs = NovaSonicToolRegistry.shared.getToolSpecs()
 
         let toolsArray = toolSpecs.map { spec in
@@ -56,7 +57,7 @@ public struct BedrockEvents {
                         "sampleSizeBits": 16,
                         "channelCount": 1,
                         "voiceId": voiceId,
-                        "encoding": "base64",
+                        "encoding": encoding,
                         "audioType": "SPEECH",
                         "transport": outputTransport
                     ],
@@ -196,7 +197,8 @@ public struct BedrockEvents {
     // MARK: - Audio Streaming Events
 
     public static func audioContentStartEvent(promptName: String, audioContentName: String, inputSampleRate: Int = 16000, inputTransport: String = "json") -> String {
-        """
+        let encoding = inputTransport == "json" ? "base64" : "raw"
+        return """
         {
             "event": {
                 "contentStart": {
@@ -211,7 +213,7 @@ public struct BedrockEvents {
                         "sampleSizeBits": 16,
                         "channelCount": 1,
                         "audioType": "SPEECH",
-                        "encoding": "base64",
+                        "encoding": "\(encoding)",
                         "transport": "\(inputTransport)"
                     }
                 }

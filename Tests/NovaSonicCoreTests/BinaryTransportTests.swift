@@ -261,4 +261,44 @@ final class BinaryTransportTests: XCTestCase {
         let config = NovaSonicConfiguration(inputTransport: .json, outputTransport: .json)
         XCTAssertNoThrow(try config.validate())
     }
+
+    func testPromptStartEventJsonTransportHasBase64Encoding() throws {
+        let event = BedrockEvents.promptStartEvent(promptName: "test-prompt", voiceId: "tiffany", outputSampleRate: 24000, outputTransport: "json")
+        let data = event.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let ev = json["event"] as! [String: Any]
+        let ps = ev["promptStart"] as! [String: Any]
+        let ac = ps["audioOutputConfiguration"] as! [String: Any]
+        XCTAssertEqual(ac["encoding"] as? String, "base64")
+    }
+
+    func testPromptStartEventBinaryTransportHasRawEncoding() throws {
+        let event = BedrockEvents.promptStartEvent(promptName: "test-prompt", voiceId: "tiffany", outputSampleRate: 24000, outputTransport: "binary")
+        let data = event.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let ev = json["event"] as! [String: Any]
+        let ps = ev["promptStart"] as! [String: Any]
+        let ac = ps["audioOutputConfiguration"] as! [String: Any]
+        XCTAssertEqual(ac["encoding"] as? String, "raw")
+    }
+
+    func testAudioContentStartEventJsonTransportHasBase64Encoding() throws {
+        let event = BedrockEvents.audioContentStartEvent(promptName: "test-prompt", audioContentName: "audio-1", inputSampleRate: 16000, inputTransport: "json")
+        let data = event.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let ev = json["event"] as! [String: Any]
+        let cs = ev["contentStart"] as! [String: Any]
+        let ac = cs["audioInputConfiguration"] as! [String: Any]
+        XCTAssertEqual(ac["encoding"] as? String, "base64")
+    }
+
+    func testAudioContentStartEventBinaryTransportHasRawEncoding() throws {
+        let event = BedrockEvents.audioContentStartEvent(promptName: "test-prompt", audioContentName: "audio-1", inputSampleRate: 16000, inputTransport: "binary")
+        let data = event.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let ev = json["event"] as! [String: Any]
+        let cs = ev["contentStart"] as! [String: Any]
+        let ac = cs["audioInputConfiguration"] as! [String: Any]
+        XCTAssertEqual(ac["encoding"] as? String, "raw")
+    }
 }
