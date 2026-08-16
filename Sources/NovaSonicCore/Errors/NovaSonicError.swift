@@ -22,7 +22,9 @@ public enum NovaSonicError: Error, LocalizedError {
     case conversionFailed
     case bufferCreationFailed
     case invalidFormat
-    
+    /// Thrown when attempting to change configuration after the stream has started.
+    case configurationLocked
+
     public var errorDescription: String? {
         switch self {
         case .audioPermissionDenied:
@@ -63,9 +65,11 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Failed to create audio buffer"
         case .invalidFormat:
             return "Invalid audio format"
+        case .configurationLocked:
+            return "Configuration cannot be changed after the stream has started"
         }
     }
-    
+
     public var recoverySuggestion: String? {
         switch self {
         case .audioPermissionDenied:
@@ -104,9 +108,11 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Try restarting the audio session"
         case .invalidFormat:
             return "Try restarting the audio session"
+        case .configurationLocked:
+            return "Stop the current session before changing configuration"
         }
     }
-    
+
     public var isRetryable: Bool {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
@@ -117,6 +123,8 @@ public enum NovaSonicError: Error, LocalizedError {
             return true  // Audio errors are often retryable
         case .toolExecutionFailed, .streamingError, .audioSessionError, .invalidResponse, .invalidAudioFormat:
             return true
+        case .configurationLocked:
+            return false
         }
     }
 }

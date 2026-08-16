@@ -52,7 +52,10 @@ public struct NovaSonicConfiguration {
     
     /// Output audio sample rate (8kHz, 16kHz, or 24kHz - matches input capabilities)
     public let outputSampleRate: NovaSonicSampleRate
-    
+
+    /// Wire format for audio frames on the bidirectional stream.
+    public let audioTransport: AudioTransport
+
     #if IOS_AUDIO
     /// iOS audio session category
     public let audioSessionCategory: AVAudioSession.Category
@@ -104,6 +107,7 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioTransport: AudioTransport = .json,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -124,6 +128,7 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioTransport = audioTransport
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -131,13 +136,13 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
         #endif
     }
-    
+
     #if IOS_AUDIO
     /// Full initialization with iOS audio session control
     public init(
@@ -153,6 +158,7 @@ public struct NovaSonicConfiguration {
         initialTextPrompt: String? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
+        audioTransport: AudioTransport = .json,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -175,6 +181,7 @@ public struct NovaSonicConfiguration {
         self.initialTextPrompt = initialTextPrompt
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
+        self.audioTransport = audioTransport
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -235,6 +242,27 @@ public extension NovaSonicConfiguration {
             dynamoDBUserId: userId
         )
     }
+
+    /// High-fidelity configuration: 48 kHz I/O, binary transport.
+    static let highFidelity = NovaSonicConfiguration(
+        inputSampleRate: .rate48kHz,
+        outputSampleRate: .rate48kHz,
+        audioTransport: .binary
+    )
+
+    /// CD-quality configuration: 44.1 kHz I/O, binary transport.
+    static let cdQuality = NovaSonicConfiguration(
+        inputSampleRate: .rate44100Hz,
+        outputSampleRate: .rate44100Hz,
+        audioTransport: .binary
+    )
+
+    /// Binary transport with standard speech rates.
+    static let binaryTransport = NovaSonicConfiguration(
+        inputSampleRate: .rate16kHz,
+        outputSampleRate: .rate24kHz,
+        audioTransport: .binary
+    )
 }
 
 // MARK: - Supporting Types
@@ -385,21 +413,34 @@ public enum NovaSonicVoice: String, CaseIterable {
 
 /// Audio sample rate options supported by Nova Sonic
 /// Higher rates give crisper output but use more bandwidth
-public enum NovaSonicSampleRate: Int, CaseIterable {
+public enum NovaSonicSampleRate: Int, CaseIterable, Sendable {
     case rate8kHz = 8000
     case rate16kHz = 16000   // Demo default for input
+    case rate22050Hz = 22050
     case rate24kHz = 24000   // Demo default for output
-    
+    case rate32kHz = 32000
+    case rate44100Hz = 44100
+    case rate48kHz = 48000
+
     public var displayName: String {
         switch self {
         case .rate8kHz: return "8 kHz (Low Quality, Low Bandwidth)"
         case .rate16kHz: return "16 kHz (Standard Quality)"
+        case .rate22050Hz: return "22.05 kHz (Half CD Quality)"
         case .rate24kHz: return "24 kHz (High Quality, Crisper Output)"
+        case .rate32kHz: return "32 kHz (Broadcast Quality)"
+        case .rate44100Hz: return "44.1 kHz (CD Quality)"
+        case .rate48kHz: return "48 kHz (Professional Audio)"
         }
     }
-    
+
     public var hertz: Int {
         return self.rawValue
+    }
+
+    /// Bytes per second for mono 16-bit PCM at this rate.
+    public var bytesPerSecond: Int {
+        return self.rawValue * 2
     }
 }
 
@@ -416,10 +457,14 @@ extension NovaSonicConfiguration {
     /// - `.carlos` - Spanish, masculine
     
     /// Sample Rate Options
-    
+
     /// - `.rate8kHz` - 8 kHz (Low bandwidth, basic quality)
     /// - `.rate16kHz` - 16 kHz (Demo default for input, balanced quality)
+    /// - `.rate22050Hz` - 22.05 kHz (Half CD quality)
     /// - `.rate24kHz` - 24 kHz (High quality, crisper output)
+    /// - `.rate32kHz` - 32 kHz (Broadcast quality)
+    /// - `.rate44100Hz` - 44.1 kHz (CD quality)
+    /// - `.rate48kHz` - 48 kHz (Professional audio)
     
     /// Model Parameters
     

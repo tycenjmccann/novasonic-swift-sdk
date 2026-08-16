@@ -1,5 +1,30 @@
-#if IOS_AUDIO
 import Foundation
+
+/// Audio transport mode for WebSocket communication
+public enum AudioTransport: String, Codable, Sendable, CaseIterable {
+    /// Base64-encoded audio in JSON event messages (default)
+    case json = "json"
+    /// Raw binary audio data frames over WebSocket
+    case binary = "binary"
+
+    /// Human-readable label suitable for UI display.
+    public var displayName: String {
+        switch self {
+        case .json: return "JSON (base64)"
+        case .binary: return "Binary (raw PCM)"
+        }
+    }
+
+    /// The `encoding` value to emit in audio configuration events.
+    public var encodingValue: String {
+        switch self {
+        case .json: return "base64"
+        case .binary: return "none"
+        }
+    }
+}
+
+#if IOS_AUDIO
 import AVFoundation
 
 /// Audio configuration constants and utilities for Nova Sonic

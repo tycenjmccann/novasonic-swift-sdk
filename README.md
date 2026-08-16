@@ -139,6 +139,37 @@ NovaSonicFloatingButton.creative(...)       // Higher temperature/topP
 NovaSonicChatView.focused(...)              // Lower temperature/topP
 ```
 
+### Custom Sample Rates
+
+Extended sample rate support for higher-fidelity audio:
+
+```swift
+// CD-quality audio
+let config = NovaSonicConfiguration(
+    inputSampleRate: .rate44100Hz,
+    outputSampleRate: .rate48kHz
+)
+
+// All supported rates: .rate8kHz, .rate16kHz, .rate22050Hz, .rate24kHz, .rate32kHz, .rate44100Hz, .rate48kHz
+```
+
+### Binary Audio Transport
+
+Reduce bandwidth overhead (~33% savings) by sending raw PCM instead of base64-encoded JSON:
+
+```swift
+let config = NovaSonicConfiguration(
+    inputSampleRate: .rate24kHz,
+    outputSampleRate: .rate24kHz,
+    audioTransport: .binary
+)
+
+// Preset configurations
+let hifi = NovaSonicConfiguration.highFidelity      // 48kHz + binary
+let cd = NovaSonicConfiguration.cdQuality           // 44.1kHz + binary
+let fast = NovaSonicConfiguration.binaryTransport   // Standard rates + binary
+```
+
 ### Model Parameters
 
 ```swift
@@ -412,7 +443,8 @@ NovaSonicFloatingButton(
 
 ### 🎙️ **Audio & Streaming**
 - Real-time bidirectional audio streaming with Amazon Nova Sonic
-- Configurable audio quality (8kHz, 16kHz, 24kHz)
+- Configurable audio quality (8kHz, 16kHz, 22.05kHz, 24kHz, 32kHz, 44.1kHz, 48kHz)
+- Binary audio transport mode for reduced bandwidth
 - Automatic format conversion and session management
 - Barge-in support for natural conversation interruptions
 
