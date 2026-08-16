@@ -176,6 +176,40 @@ func stopSession() async
 func setSpeakFirst(_ speakFirst: Bool)  // Make AI speak first
 ```
 
+### Session Updates
+
+Update session parameters mid-stream:
+
+```swift
+/// Send a session.update event to modify active session settings
+func updateSession(
+    replace: [String: String]? = nil,
+    languageHint: String? = nil,
+    keyterms: [String]? = nil
+) async throws
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `replace` | `[String: String]?` | Pronunciation replacement map for TTS (case-insensitive, whole-word) |
+| `languageHint` | `String?` | BCP-47 language code to bias transcription (e.g., "es-MX") |
+| `keyterms` | `[String]?` | Domain vocabulary to bias transcription (max 100, each ≤ 50 chars) |
+
+**Throws:** `NovaSonicError.invalidConfiguration` if validation fails.
+
+### SessionUpdateConfiguration
+
+```swift
+public struct SessionUpdateConfiguration {
+    public let replace: [String: String]?
+    public let languageHint: String?
+    public let keyterms: [String]?
+    
+    public init(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil)
+    public func validate() throws
+}
+```
+
 ## Tool Protocol
 
 ```swift

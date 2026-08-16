@@ -243,6 +243,38 @@ NovaSonicChatView(
 )
 ```
 
+## Mid-Session Updates
+
+Update pronunciation, language, and vocabulary settings during an active session:
+
+```swift
+// Update pronunciation replacements for TTS
+try await streamManager.updateSession(
+    replace: ["AWS": "A.W.S.", "S3": "S three", "EC2": "E.C. two"]
+)
+
+// Bias transcription toward a specific language
+try await streamManager.updateSession(
+    languageHint: "es-MX"
+)
+
+// Add domain vocabulary for better transcription accuracy
+try await streamManager.updateSession(
+    keyterms: ["NovaSonic", "Bedrock", "CloudFormation"]
+)
+
+// Combine all three in one update
+try await streamManager.updateSession(
+    replace: ["API": "A.P.I."],
+    languageHint: "pt-BR",
+    keyterms: ["DynamoDB", "Lambda"]
+)
+```
+
+**Validation Rules:**
+- `languageHint`: Must use regional variants (e.g., `es-MX`, `pt-BR`). Bare `es` or `pt` codes are rejected.
+- `keyterms`: Maximum 100 items, each ≤ 50 characters.
+
 ## AWS Setup
 
 ### Prerequisites
