@@ -7,6 +7,8 @@ public enum NovaSonicError: Error, LocalizedError {
     case toolExecutionFailed(String)
     case sessionTimeout
     case invalidConfiguration
+    case invalidLanguageHint(String)
+    case invalidKeyterms(String)
     case streamingError(String)
     case audioSessionError(String)
     case invalidResponse(String)
@@ -37,6 +39,10 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Conversation session has timed out"
         case .invalidConfiguration:
             return "Invalid Nova Sonic configuration"
+        case .invalidLanguageHint(let message):
+            return "Invalid language hint: \(message)"
+        case .invalidKeyterms(let message):
+            return "Invalid keyterms: \(message)"
         case .streamingError(let message):
             return "Streaming error: \(message)"
         case .audioSessionError(let message):
@@ -80,6 +86,10 @@ public enum NovaSonicError: Error, LocalizedError {
             return "Start a new conversation session"
         case .invalidConfiguration:
             return "Check your Nova Sonic configuration settings"
+        case .invalidLanguageHint:
+            return "Provide a valid BCP-47 language tag with a regional variant (e.g., 'es-MX', 'pt-BR')"
+        case .invalidKeyterms:
+            return "Ensure keyterms list has at most 100 items, each no longer than 50 characters"
         case .streamingError, .audioSessionError:
             return "Try restarting the conversation"
         case .invalidResponse:
@@ -111,7 +121,7 @@ public enum NovaSonicError: Error, LocalizedError {
         switch self {
         case .networkConnectionFailed, .serviceUnavailable, .rateLimitExceeded, .sessionTimeout:
             return true
-        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .microphoneNotAvailable:
+        case .audioPermissionDenied, .authenticationFailed, .invalidConfiguration, .invalidLanguageHint, .invalidKeyterms, .microphoneNotAvailable:
             return false
         case .converterCreationFailed, .sessionConfigurationFailed, .engineStartFailed, .conversionFailed, .bufferCreationFailed, .invalidFormat:
             return true  // Audio errors are often retryable

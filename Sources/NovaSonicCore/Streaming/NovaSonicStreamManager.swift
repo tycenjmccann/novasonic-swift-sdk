@@ -363,14 +363,25 @@ public class NovaSonicStreamManager: ObservableObject {
             throw NovaSonicError.streamingError("Event stream not available")
         }
         
+        // Validate languageHint if provided
+        if let hint = languageHint {
+            guard !hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw NovaSonicError.invalidLanguageHint("Language hint cannot be empty")
+            }
+            let bareLanguages = ["es", "pt"]
+            if bareLanguages.contains(hint.lowercased()) {
+                throw NovaSonicError.invalidLanguageHint("Language '\(hint)' requires a regional variant (e.g., '\(hint)-MX' or '\(hint)-BR')")
+            }
+        }
+
         // Validate keyterms if provided
         if let keyterms = keyterms, !keyterms.isEmpty {
             guard keyterms.count <= 100 else {
-                throw NovaSonicError.invalidConfiguration
+                throw NovaSonicError.invalidKeyterms("Keyterms list exceeds maximum of 100 items (got \(keyterms.count))")
             }
             for term in keyterms {
                 guard term.count <= 50 else {
-                    throw NovaSonicError.invalidConfiguration
+                    throw NovaSonicError.invalidKeyterms("Keyterm exceeds maximum length of 50 characters: '\(term.prefix(20))...'")
                 }
             }
         }

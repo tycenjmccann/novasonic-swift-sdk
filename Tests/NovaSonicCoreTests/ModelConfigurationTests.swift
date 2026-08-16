@@ -203,7 +203,13 @@ final class SessionUpdateTests: XCTestCase {
     func testKeytermsValidationRejects101Items() {
         let terms = (1...101).map { "term\($0)" }
         let cfg = NovaSonicConfiguration(keyterms: terms)
-        XCTAssertThrowsError(try cfg.validate(), "More than 100 keyterms must be rejected")
+        XCTAssertThrowsError(try cfg.validate(), "More than 100 keyterms must be rejected") { error in
+            guard case NovaSonicError.invalidKeyterms(let msg) = error else {
+                XCTFail("Expected .invalidKeyterms, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("101"), "Message should include the count")
+        }
     }
 
     func testKeytermsValidationAccepts50CharTerm() {
@@ -215,7 +221,13 @@ final class SessionUpdateTests: XCTestCase {
     func testKeytermsValidationRejects51CharTerm() {
         let term = String(repeating: "a", count: 51)
         let cfg = NovaSonicConfiguration(keyterms: [term])
-        XCTAssertThrowsError(try cfg.validate(), "Term exceeding 50 chars must be rejected")
+        XCTAssertThrowsError(try cfg.validate(), "Term exceeding 50 chars must be rejected") { error in
+            guard case NovaSonicError.invalidKeyterms(let msg) = error else {
+                XCTFail("Expected .invalidKeyterms, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("50 characters"), "Message should mention the limit")
+        }
     }
 
     func testKeytermsNilPassesValidation() {
@@ -356,6 +368,126 @@ final class SessionUpdateTests: XCTestCase {
             let input = audio?["input"] as? [String: Any]
             let transcription = input?["transcription"] as? [String: Any]
             XCTAssertEqual(transcription?["language_hint"] as? String, tag)
+        }
+    }
+
+    // MARK: - Language Hint Validation
+
+    func testEmptyLanguageHintIsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "")
+        XCTAssertThrowsError(try cfg.validate(), "Empty language hint must be rejected") { error in
+            guard case NovaSonicError.invalidLanguageHint(let msg) = error else {
+                XCTFail("Expected .invalidLanguageHint, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("empty"), "Message should mention empty")
+        }
+    }
+
+    func testWhitespaceOnlyLanguageHintIsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "   ")
+        XCTAssertThrowsError(try cfg.validate(), "Whitespace-only language hint must be rejected") { error in
+            guard case NovaSonicError.invalidLanguageHint = error else {
+                XCTFail("Expected .invalidLanguageHint, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testBareEsLanguageHintIsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate(), "Bare 'es' must be rejected") { error in
+            guard case NovaSonicError.invalidLanguageHint(let msg) = error else {
+                XCTFail("Expected .invalidLanguageHint, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("regional variant"), "Message should suggest regional variant")
+        }
+    }
+
+    func testBarePtLanguageHintIsRejected() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt")
+        XCTAssertThrowsError(try cfg.validate(), "Bare 'pt' must be rejected") { error in
+            guard case NovaSonicError.invalidLanguageHint(let msg) = error else {
+                XCTFail("Expected .invalidLanguageHint, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("regional variant"), "Message should suggest regional variant")
+        }
+    }
+
+    func testEsMXLanguageHintIsAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "es-MX")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testPtBRLanguageHintIsAccepted() {
+        let cfg = NovaSonicConfiguration(languageHint: "pt-BR")
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    func testNilLanguageHintPassesValidation() {
+        let cfg = NovaSonicConfiguration(languageHint: nil)
+        XCTAssertNoThrow(try cfg.validate())
+    }
+
+    // MARK: - Descriptive Error Messages
+
+    func testKeytermsOverLimitErrorDescriptionContainsCount() {
+        let terms = (1...105).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidKeyterms(let msg) = error else {
+                XCTFail("Expected .invalidKeyterms, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("105"), "Should include actual count")
+            XCTAssertTrue(msg.contains("100"), "Should include the limit")
+        }
+    }
+
+    func testKeytermOverLengthErrorDescriptionContainsPrefix() {
+        let term = "abcdefghijklmnopqrstuvwxyz" + String(repeating: "x", count: 30)
+        let cfg = NovaSonicConfiguration(keyterms: [term])
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard case NovaSonicError.invalidKeyterms(let msg) = error else {
+                XCTFail("Expected .invalidKeyterms, got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("50 characters"), "Should mention the character limit")
+            XCTAssertTrue(msg.contains("abcdefghijklmnopqrst"), "Should include truncated prefix")
+        }
+    }
+
+    func testInvalidLanguageHintErrorDescription() {
+        let cfg = NovaSonicConfiguration(languageHint: "es")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            let nsError = error as NSError
+            XCTAssertNotNil(nsError.localizedDescription)
+            XCTAssertTrue(nsError.localizedDescription.contains("es"), "Error description should mention the language")
+        }
+    }
+
+    func testInvalidKeytermsErrorIsNotRetryable() {
+        let terms = (1...101).map { "term\($0)" }
+        let cfg = NovaSonicConfiguration(keyterms: terms)
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard let novaSonicError = error as? NovaSonicError else {
+                XCTFail("Expected NovaSonicError")
+                return
+            }
+            XCTAssertFalse(novaSonicError.isRetryable)
+        }
+    }
+
+    func testInvalidLanguageHintErrorIsNotRetryable() {
+        let cfg = NovaSonicConfiguration(languageHint: "")
+        XCTAssertThrowsError(try cfg.validate()) { error in
+            guard let novaSonicError = error as? NovaSonicError else {
+                XCTFail("Expected NovaSonicError")
+                return
+            }
+            XCTAssertFalse(novaSonicError.isRetryable)
         }
     }
 

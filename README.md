@@ -369,7 +369,7 @@ Update pronunciation replacements, language hints, and key terms during an activ
 ### Pronunciation Replacements
 
 ```swift
-// Configure replacements at session start
+// Configure with initial settings
 let config = NovaSonicConfiguration(
     voice: .tiffany,
     systemPrompt: "You are a helpful assistant.",
@@ -377,7 +377,10 @@ let config = NovaSonicConfiguration(
 )
 streamManager.configure(with: config)
 
-// Or update mid-session
+// Start the session (required before mid-session updates)
+try await streamManager.startSession()
+
+// Update mid-session (session must be active)
 try await streamManager.updateSession(
     replace: ["Acme Mobile": "Acme Mobull", "BrandX": "Brand Ex"]
 )
@@ -386,28 +389,36 @@ try await streamManager.updateSession(
 ### Language Hint
 
 ```swift
-// Set language hint at configuration time
+// Configure with initial settings
 let config = NovaSonicConfiguration(
     voice: .tiffany,
     systemPrompt: "You are a helpful assistant.",
     languageHint: "ja"  // Japanese
 )
+streamManager.configure(with: config)
 
-// Or update mid-session
+// Start the session (required before mid-session updates)
+try await streamManager.startSession()
+
+// Update mid-session (session must be active)
 try await streamManager.updateSession(languageHint: "es-MX")
 ```
 
 ### Key Terms
 
 ```swift
-// Improve transcription accuracy for domain-specific terms
+// Configure with initial settings
 let config = NovaSonicConfiguration(
     voice: .tiffany,
     systemPrompt: "You are a helpful assistant.",
     keyterms: ["Acme Mobile", "NovaSonic", "BrandX"]  // Max 100 terms, each ≤ 50 chars
 )
+streamManager.configure(with: config)
 
-// Or update mid-session
+// Start the session (required before mid-session updates)
+try await streamManager.startSession()
+
+// Update mid-session (session must be active)
 try await streamManager.updateSession(
     keyterms: ["Acme Mobile", "NovaSonic", "BrandX", "NewTerm"]
 )
@@ -416,6 +427,16 @@ try await streamManager.updateSession(
 ### Combined Update
 
 ```swift
+// Configure with initial settings
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant."
+)
+streamManager.configure(with: config)
+
+// Start the session (required before mid-session updates)
+try await streamManager.startSession()
+
 // Send all session update fields at once (sparse — only non-nil fields are sent)
 try await streamManager.updateSession(
     replace: ["Acme Mobile": "Acme Mobull"],
