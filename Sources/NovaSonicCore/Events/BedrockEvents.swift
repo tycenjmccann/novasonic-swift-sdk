@@ -296,6 +296,52 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    /// Builds a session.update event JSON payload.
+    /// - Parameters:
+    ///   - replace: Pronunciation replacement dictionary (omitted if nil/empty)
+    ///   - languageHint: BCP-47 language code (omitted if nil)
+    ///   - keyterms: Domain vocabulary array (omitted if nil/empty)
+    ///   - voice: Voice ID for the session
+    ///   - instructions: System prompt / instructions text
+    /// - Returns: JSON string for the session update event
+    public static func sessionUpdateEvent(replace: [String: String]?, languageHint: String?, keyterms: [String]?, voice: String, instructions: String) -> String {
+        var session: [String: Any] = [
+            "voice": voice,
+            "instructions": instructions
+        ]
+
+        if let replace = replace, !replace.isEmpty {
+            session["replace"] = replace
+        }
+
+        var transcription: [String: Any] = [:]
+        if let languageHint = languageHint {
+            transcription["language_hint"] = languageHint
+        }
+        if let keyterms = keyterms, !keyterms.isEmpty {
+            transcription["keyterms"] = keyterms
+        }
+        if !transcription.isEmpty {
+            session["audio"] = [
+                "input": [
+                    "transcription": transcription
+                ]
+            ]
+        }
+
+        let event: [String: Any] = [
+            "event": [
+                "sessionUpdate": [
+                    "session": session
+                ]
+            ]
+        ]
+
+        return encodeJSON(event)
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

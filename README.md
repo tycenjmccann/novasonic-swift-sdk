@@ -450,6 +450,73 @@ NovaSonicFloatingButton(
 - Xcode 14.0+
 - AWS Account with Bedrock Nova Sonic access
 
+## Session Update
+
+Nova Sonic supports mid-session updates for pronunciation replacements, language hints, and domain keyterms. These features improve transcription accuracy and speech output quality.
+
+### Pronunciation Replacements
+
+Map written text to custom pronunciations:
+
+```swift
+let config = NovaSonicConfiguration(
+    replace: [
+        "Acme Mobile": "Acme Mobull",
+        "AWS": "A W S",
+        "SDK": "S D K"
+    ]
+)
+streamManager.configure(with: config)
+try await streamManager.updateSession()
+```
+
+### Language Hint
+
+Bias transcription toward a specific language using BCP-47 codes:
+
+```swift
+let config = NovaSonicConfiguration(
+    languageHint: "ja"  // Japanese
+)
+streamManager.configure(with: config)
+try await streamManager.updateSession()
+```
+
+> **Note:** Bare `"es"` and `"pt"` codes are rejected — use regional variants like `"es-MX"` or `"pt-BR"` instead.
+
+### Keyterms
+
+Provide domain vocabulary to improve transcription accuracy:
+
+```swift
+let config = NovaSonicConfiguration(
+    keyterms: ["NovaSonic", "Bedrock", "Acme Mobile"]
+)
+streamManager.configure(with: config)
+try await streamManager.updateSession()
+```
+
+Validation rules:
+- Maximum 100 keyterms
+- Each term must be 50 characters or fewer
+
+### Combined Usage
+
+All three features can be used together:
+
+```swift
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a helpful assistant.",
+    replace: ["Acme Mobile": "Acme Mobull"],
+    languageHint: "en-US",
+    keyterms: ["NovaSonic", "Bedrock", "Acme Mobile"]
+)
+streamManager.configure(with: config)
+try await streamManager.startSession()
+try await streamManager.updateSession()
+```
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

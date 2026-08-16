@@ -44,7 +44,16 @@ public struct NovaSonicConfiguration {
     /// If provided, sends text instead of audio for speakFirst
     /// Example: "Hello, I'm your assistant. How can I help you today?"
     public let initialTextPrompt: String?
-    
+
+    /// Pronunciation replacement map (original text → spoken form)
+    public let replace: [String: String]?
+
+    /// BCP-47 language hint for transcription bias
+    public let languageHint: String?
+
+    /// Domain vocabulary terms for transcription accuracy
+    public let keyterms: [String]?
+
     // MARK: - Audio Configuration
     
     /// Input audio sample rate (8kHz, 16kHz, or 24kHz - higher rates give crisper output)
@@ -102,6 +111,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         historyManager: NovaSonicHistoryManager? = nil,
@@ -122,6 +134,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.historyManager = historyManager
@@ -131,7 +146,7 @@ public struct NovaSonicConfiguration {
         self.dynamoDBRegion = dynamoDBRegion ?? region
         self.awsCredentialIdentityResolver = awsCredentialIdentityResolver
         self.logLevel = logLevel
-        
+
         #if IOS_AUDIO
         self.audioSessionCategory = .playAndRecord
         self.audioSessionOptions = [.defaultToSpeaker, .allowBluetooth]
@@ -151,6 +166,9 @@ public struct NovaSonicConfiguration {
         endpointingSensitivity: EndpointingSensitivity = .high,
         enableParalinguisticDetection: Bool = false,
         initialTextPrompt: String? = nil,
+        replace: [String: String]? = nil,
+        languageHint: String? = nil,
+        keyterms: [String]? = nil,
         inputSampleRate: NovaSonicSampleRate = .rate16kHz,
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
@@ -173,6 +191,9 @@ public struct NovaSonicConfiguration {
         self.endpointingSensitivity = endpointingSensitivity
         self.enableParalinguisticDetection = enableParalinguisticDetection
         self.initialTextPrompt = initialTextPrompt
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
         self.inputSampleRate = inputSampleRate
         self.outputSampleRate = outputSampleRate
         self.audioSessionCategory = audioSessionCategory
@@ -463,6 +484,23 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate languageHint — reject bare "es" or "pt" (must use full BCP-47 subtag)
+        if let hint = languageHint, hint == "es" || hint == "pt" {
+            throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate keyterms count (max 100)
+        if let terms = keyterms, terms.count > 100 {
+            throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate individual keyterm length (max 50 characters)
+        if let terms = keyterms {
+            for term in terms where term.count > 50 {
+                throw NovaSonicError.invalidConfiguration
+            }
         }
     }
 }

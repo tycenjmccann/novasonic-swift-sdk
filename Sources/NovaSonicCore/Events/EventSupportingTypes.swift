@@ -81,3 +81,21 @@ public struct NovaSonicToolSpec {
         self.schema = schema
     }
 }
+
+// MARK: - Session Update
+
+/// Represents a session update event with optional pronunciation, language, and keyterms fields.
+public struct SessionUpdateEvent {
+    /// Pronunciation replacement map (original text → spoken form)
+    public let replace: [String: String]?
+    /// BCP-47 language hint for transcription bias
+    public let languageHint: String?
+    /// Domain vocabulary terms for transcription accuracy
+    public let keyterms: [String]?
+
+    public init(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) {
+        self.replace = replace
+        self.languageHint = languageHint
+        self.keyterms = keyterms
+    }
+}

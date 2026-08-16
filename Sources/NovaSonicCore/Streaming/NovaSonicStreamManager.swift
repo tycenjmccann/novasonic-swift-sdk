@@ -342,7 +342,42 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Send a session update event to modify pronunciation replacements, language hint, or keyterms mid-session.
+    /// Validates the current configuration before sending.
+    /// - Throws: `NovaSonicError.streamingError` if the session is not active or stream is unavailable,
+    ///           `NovaSonicError.invalidConfiguration` if validation fails.
+    public func updateSession() async throws {
+        guard isStreaming else {
+            throw NovaSonicError.streamingError("Cannot update session - session not active")
+        }
+
+        guard let continuation = eventStreamContinuation else {
+            throw NovaSonicError.streamingError("Event stream not available")
+        }
+
+        guard let config = configuration else {
+            throw NovaSonicError.invalidConfiguration
+        }
+
+        try config.validate()
+
+        let eventJson = BedrockEvents.sessionUpdateEvent(
+            replace: config.replace,
+            languageHint: config.languageHint,
+            keyterms: config.keyterms,
+            voice: config.voice.rawValue,
+            instructions: config.systemPrompt
+        )
+
+        NovaSonicLogger.standard("📝 Sending session update event")
+        continuation.yield(
+            .chunk(
+                .init(bytes: Data(eventJson.utf8))
+            )
+        )
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
