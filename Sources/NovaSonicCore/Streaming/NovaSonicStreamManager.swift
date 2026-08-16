@@ -680,11 +680,14 @@ public class NovaSonicStreamManager: ObservableObject {
                 
                 // Extract the raw bytes from output using the reference pattern
                 let eventBytes: Data?
+                let isChunkOutput: Bool
                 switch output {
                 case .chunk(let payloadPart):
                     eventBytes = payloadPart.bytes
+                    isChunkOutput = true
                 case .sdkUnknown(let unknownString):
                     eventBytes = Data(unknownString.utf8)
+                    isChunkOutput = false
                 }
                 
                 guard let bytes = eventBytes, !bytes.isEmpty else {
@@ -700,8 +703,8 @@ public class NovaSonicStreamManager: ObservableObject {
                        let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                        let event = topLevel["event"] as? [String: Any] {
                         await handleEvent(event)
-                    } else {
-                        // Raw binary PCM audio data
+                    } else if isChunkOutput {
+                        // Raw binary PCM audio data - only from actual .chunk payloads
                         if sessionMetrics?.turns.last?.firstAudioChunkAt == nil {
                             withCurrentTurn { if $0.firstAudioChunkAt == nil { $0.firstAudioChunkAt = elapsed() } }
                         }
@@ -710,6 +713,9 @@ public class NovaSonicStreamManager: ObservableObject {
                             try await audioManager.playAudio(bytes)
                         }
                         #endif
+                    } else {
+                        // Non-chunk frame (e.g. sdkUnknown) - skip, never play as audio
+                        NovaSonicLogger.verbose("⚠️ Skipping non-chunk frame in binary output mode (likely sdkUnknown)")
                     }
                     continue
                 }
@@ -729,7 +735,11 @@ public class NovaSonicStreamManager: ObservableObject {
                     let topLevel = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                     let event = topLevel["event"] as? [String: Any]
                 else {
-                    NovaSonicLogger.error("❌ Failed to parse Nova Sonic response")
+                    if !isChunkOutput {
+                        NovaSonicLogger.verbose("⚠️ Skipping non-chunk frame in JSON output mode (likely sdkUnknown)")
+                    } else {
+                        NovaSonicLogger.error("❌ Failed to parse Nova Sonic response")
+                    }
                     continue
                 }
 

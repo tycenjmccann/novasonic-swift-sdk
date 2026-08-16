@@ -175,6 +175,102 @@ final class BinaryTransportTests: XCTestCase {
         XCTAssertNotNil(event["textOutput"])
     }
 
+    // MARK: - OutputFrameClassification (sdkUnknown filtering - TEAM-2480)
+
+    @MainActor
+    func testClassifyOutputFrame_sdkUnknownInBinaryMode_isSkipped() {
+        let unknownBytes = Data("someNewEventType".utf8)
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: unknownBytes,
+            isChunkOutput: false,
+            outputTransport: .binary
+        )
+        if case .skipped(let reason) = result {
+            XCTAssertTrue(reason.contains("sdkUnknown"), "Reason should mention sdkUnknown, got: \(reason)")
+        } else {
+            XCTFail("Expected .skipped for sdkUnknown in binary mode")
+        }
+    }
+
+    @MainActor
+    func testClassifyOutputFrame_sdkUnknownInJsonMode_isSkipped() {
+        let unknownBytes = Data("anotherUnknownType".utf8)
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: unknownBytes,
+            isChunkOutput: false,
+            outputTransport: .json
+        )
+        if case .skipped(let reason) = result {
+            XCTAssertTrue(reason.contains("sdkUnknown"), "Reason should mention sdkUnknown, got: \(reason)")
+        } else {
+            XCTFail("Expected .skipped for sdkUnknown in JSON mode")
+        }
+    }
+
+    @MainActor
+    func testClassifyOutputFrame_chunkWithValidJson_isJsonEvent() {
+        let validEvent = Data("""
+        {"event":{"textOutput":{"content":"hello","role":"ASSISTANT"}}}
+        """.utf8)
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: validEvent,
+            isChunkOutput: true,
+            outputTransport: .binary
+        )
+        if case .jsonEvent(let event) = result {
+            XCTAssertNotNil(event["textOutput"], "Should parse textOutput from JSON event")
+        } else {
+            XCTFail("Expected .jsonEvent for valid JSON chunk")
+        }
+    }
+
+    @MainActor
+    func testClassifyOutputFrame_chunkWithRawPCM_inBinaryMode_isBinaryAudio() {
+        let rawPCM = Data([0x80, 0x00, 0x7F, 0xFF, 0x01, 0x02, 0xAB, 0xCD])
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: rawPCM,
+            isChunkOutput: true,
+            outputTransport: .binary
+        )
+        if case .binaryAudio(let data) = result {
+            XCTAssertEqual(data, rawPCM, "Binary audio data should be passed through unchanged")
+        } else {
+            XCTFail("Expected .binaryAudio for raw PCM chunk in binary mode")
+        }
+    }
+
+    @MainActor
+    func testClassifyOutputFrame_chunkWithRawPCM_inJsonMode_isSkipped() {
+        let rawPCM = Data([0x80, 0x00, 0x7F, 0xFF])
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: rawPCM,
+            isChunkOutput: true,
+            outputTransport: .json
+        )
+        if case .skipped(let reason) = result {
+            XCTAssertTrue(reason.contains("unparseable"), "Reason should mention unparseable, got: \(reason)")
+        } else {
+            XCTFail("Expected .skipped for raw PCM chunk in JSON mode")
+        }
+    }
+
+    @MainActor
+    func testClassifyOutputFrame_sdkUnknownValidJson_stillParsed() {
+        let validEvent = Data("""
+        {"event":{"contentStart":{"contentId":"abc"}}}
+        """.utf8)
+        let result = NovaSonicStreamManager.classifyOutputFrame(
+            bytes: validEvent,
+            isChunkOutput: false,
+            outputTransport: .binary
+        )
+        if case .jsonEvent(let event) = result {
+            XCTAssertNotNil(event["contentStart"], "Valid JSON from sdkUnknown should still be parsed")
+        } else {
+            XCTFail("Expected .jsonEvent even from sdkUnknown if JSON is valid")
+        }
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ string: String) -> [String: Any]? {
