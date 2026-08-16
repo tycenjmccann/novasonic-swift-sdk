@@ -96,6 +96,37 @@ struct ContentView: View {
 }
 ```
 
+## Session Update (Transcription)
+
+Customize input transcription settings (keyterm boosting, partial results) via `session.update`:
+
+```swift
+import NovaSonicCore
+
+// Configure with transcription keyterms for domain-specific recognition
+let config = NovaSonicConfiguration(
+    voice: .tiffany,
+    systemPrompt: "You are a medical assistant.",
+    transcription: TranscriptionConfig(
+        partialResultsEnabled: true,
+        keyterms: ["acetaminophen", "ibuprofen", "amoxicillin"]
+    )
+)
+
+streamManager.configure(with: config)
+try await streamManager.startSession()  // session.update sent automatically
+```
+
+You can also update transcription mid-session:
+
+```swift
+try await streamManager.updateSession(
+    transcription: TranscriptionConfig(keyterms: ["new-term"])
+)
+```
+
+**Limits:** max 100 keyterms, each max 50 characters.
+
 ## Configuration Options
 
 ### Voice Selection

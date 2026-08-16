@@ -10,6 +10,31 @@ public enum AudioTransportMode: String, CaseIterable {
     case binary = "binary"   // Raw binary WebSocket frames for audio data
 }
 
+/// Configuration for input transcription in session.update
+public struct TranscriptionConfig: Equatable {
+    /// Whether partial transcription results are returned
+    public let partialResultsEnabled: Bool
+
+    /// Keyterms to boost recognition for (max 100 items, each max 50 characters)
+    public let keyterms: [String]
+
+    public init(partialResultsEnabled: Bool = true, keyterms: [String] = []) {
+        self.keyterms = keyterms
+        self.partialResultsEnabled = partialResultsEnabled
+    }
+
+    public func validate() throws {
+        guard keyterms.count <= 100 else {
+            throw NovaSonicError.invalidConfiguration
+        }
+        for term in keyterms {
+            guard term.count <= 50 else {
+                throw NovaSonicError.invalidConfiguration
+            }
+        }
+    }
+}
+
 /// Configuration for Nova Sonic speech-to-speech interactions
 public struct NovaSonicConfiguration {
     
@@ -96,8 +121,13 @@ public struct NovaSonicConfiguration {
     /// Used for both Bedrock and DynamoDB clients when provided
     public let awsCredentialIdentityResolver: (any SmithyIdentity.AWSCredentialIdentityResolver)?
     
+    // MARK: - Session Update Configuration
+
+    /// Transcription configuration for session.update (optional)
+    public let transcription: TranscriptionConfig?
+
     // MARK: - Logging Configuration
-    
+
     /// Logging level for Nova Sonic operations
     public let logLevel: NovaSonicLogLevel
     
@@ -118,6 +148,7 @@ public struct NovaSonicConfiguration {
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
         outputTransport: AudioTransportMode = .json,
+        transcription: TranscriptionConfig? = nil,
         historyManager: NovaSonicHistoryManager? = nil,
         enableDynamoDBHistory: Bool = false,
         dynamoDBTableName: String = "nova_sonic_chat_history",
@@ -140,6 +171,7 @@ public struct NovaSonicConfiguration {
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
         self.outputTransport = outputTransport
+        self.transcription = transcription
         self.historyManager = historyManager
         self.enableDynamoDBHistory = enableDynamoDBHistory
         self.dynamoDBTableName = dynamoDBTableName
@@ -171,6 +203,7 @@ public struct NovaSonicConfiguration {
         outputSampleRate: NovaSonicSampleRate = .rate24kHz,
         inputTransport: AudioTransportMode = .json,
         outputTransport: AudioTransportMode = .json,
+        transcription: TranscriptionConfig? = nil,
         audioSessionCategory: AVAudioSession.Category = .playAndRecord,
         audioSessionOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth],
         historyManager: NovaSonicHistoryManager? = nil,
@@ -195,6 +228,7 @@ public struct NovaSonicConfiguration {
         self.outputSampleRate = outputSampleRate
         self.inputTransport = inputTransport
         self.outputTransport = outputTransport
+        self.transcription = transcription
         self.audioSessionCategory = audioSessionCategory
         self.audioSessionOptions = audioSessionOptions
         self.historyManager = historyManager
@@ -448,6 +482,15 @@ extension NovaSonicConfiguration {
     /// - `maxTokens`: 1-4096 (response length limit)
 }
 
+// MARK: - Session Update
+
+extension NovaSonicConfiguration {
+    /// Whether this configuration requires a session.update event at stream start
+    public var requiresSessionUpdate: Bool {
+        return transcription != nil
+    }
+}
+
 // MARK: - Validation
 
 extension NovaSonicConfiguration {
@@ -483,6 +526,11 @@ extension NovaSonicConfiguration {
         // Validate system prompt
         guard !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NovaSonicError.invalidConfiguration
+        }
+
+        // Validate transcription config if provided
+        if let transcription = transcription {
+            try transcription.validate()
         }
     }
 }

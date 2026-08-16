@@ -307,6 +307,25 @@ public struct BedrockEvents {
         """
     }
 
+    // MARK: - Session Update Events
+
+    public static func sessionUpdateEvent(transcription: TranscriptionConfig) -> String {
+        var inputTranscription: [String: Any] = [
+            "partialResultsEnabled": transcription.partialResultsEnabled
+        ]
+        if !transcription.keyterms.isEmpty {
+            inputTranscription["keyterms"] = transcription.keyterms
+        }
+        let event: [String: Any] = [
+            "event": [
+                "sessionUpdate": [
+                    "inputTranscription": inputTranscription
+                ]
+            ]
+        ]
+        return encodeJSON(event)
+    }
+
     // MARK: - Session Closing Events
 
     public static func promptEndEvent(promptName: String) -> String {

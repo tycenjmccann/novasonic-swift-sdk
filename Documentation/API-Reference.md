@@ -145,6 +145,45 @@ NovaSonicFloatingButton.withDynamoDBHistory(
 )
 ```
 
+## Session Update
+
+### TranscriptionConfig
+
+```swift
+public struct TranscriptionConfig: Equatable {
+    /// Whether partial transcription results are returned (default: true)
+    public let partialResultsEnabled: Bool
+
+    /// Keyterms to boost recognition for (max 100 items, each max 50 characters)
+    public let keyterms: [String]
+
+    public init(partialResultsEnabled: Bool = true, keyterms: [String] = [])
+    public func validate() throws  // Throws NovaSonicError.invalidConfiguration on constraint violation
+}
+```
+
+### Usage in NovaSonicConfiguration
+
+```swift
+let config = NovaSonicConfiguration(
+    transcription: TranscriptionConfig(
+        partialResultsEnabled: true,
+        keyterms: ["AWS", "Bedrock", "Nova Sonic"]
+    )
+)
+```
+
+When `transcription` is set, a `session.update` event is sent automatically after `sessionStart`.
+
+### Mid-Session Update
+
+```swift
+// Update transcription settings during an active session
+try await streamManager.updateSession(
+    transcription: TranscriptionConfig(keyterms: ["updated-term"])
+)
+```
+
 ## NovaSonicVoice
 
 Available voices:
