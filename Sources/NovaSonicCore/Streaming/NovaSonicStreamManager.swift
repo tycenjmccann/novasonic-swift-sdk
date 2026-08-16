@@ -342,7 +342,21 @@ public class NovaSonicStreamManager: ObservableObject {
         
         NovaSonicLogger.standard("Sent text message: \(text)")
     }
-    
+
+    /// Sends a session.update event to modify pronunciation replacements, language hint, or keyterms mid-session.
+    /// - Parameters:
+    ///   - replace: Pronunciation replacement map for TTS substitution (case-insensitive, whole-word)
+    ///   - languageHint: BCP-47 language code to bias transcription (e.g., "es-MX", "pt-BR")
+    ///   - keyterms: Domain-specific vocabulary to bias transcription (max 100 items, each ≤ 50 chars)
+    /// - Throws: `NovaSonicError.invalidConfiguration` if validation fails
+    public func updateSession(replace: [String: String]? = nil, languageHint: String? = nil, keyterms: [String]? = nil) async throws {
+        let config = SessionUpdateConfiguration(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        try config.validate()
+
+        let eventJson = BedrockEvents.sessionUpdateEvent(replace: replace, languageHint: languageHint, keyterms: keyterms)
+        try await sendEvent(eventJson, label: "sessionUpdate")
+    }
+
     // MARK: - History Management
     
     /// Set the history manager for conversation persistence
