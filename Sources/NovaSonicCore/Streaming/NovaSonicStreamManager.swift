@@ -540,16 +540,26 @@ public class NovaSonicStreamManager: ObservableObject {
                     // Legacy: Send audio file only if no text prompt provided
                     NovaSonicLogger.standard("🎙️ Starting initial audio prompt sequence")
                     NovaSonicLogger.standard("🎙️ Sending initial audio prompt to make Nova Sonic speak first")
-                    
+
                     if let initialAudioData = self.getInitialAudioData() {
                         NovaSonicLogger.standard("🎙️ Got initial audio data, size: \(initialAudioData.count) bytes")
-                        let audioInputEvent = BedrockEvents.audioInputEvent(
-                            audioData: initialAudioData,
-                            promptName: promptName,
-                            audioContentName: audioContentName
-                        )
-                        NovaSonicLogger.standard("🎙️ Created audioInputEvent, sending to Nova Sonic...")
-                        yieldEvent(audioInputEvent, label: "initialAudioPrompt")
+
+                        let inputTransport = self.configuration?.inputTransport ?? .json
+                        if inputTransport == .binary {
+                            // Binary transport: send raw audio bytes directly (matching microphone path)
+                            let binaryData = BedrockEvents.binaryAudioInputData(audioData: initialAudioData)
+                            NovaSonicLogger.standard("🎙️ Sending initial audio via binary transport (\(binaryData.count) bytes)")
+                            continuation.yield(.chunk(.init(bytes: binaryData)))
+                        } else {
+                            // JSON transport: wrap audio in base64 JSON event (existing behavior)
+                            let audioInputEvent = BedrockEvents.audioInputEvent(
+                                audioData: initialAudioData,
+                                promptName: promptName,
+                                audioContentName: audioContentName
+                            )
+                            NovaSonicLogger.standard("🎙️ Created audioInputEvent, sending to Nova Sonic...")
+                            yieldEvent(audioInputEvent, label: "initialAudioPrompt")
+                        }
                         try? await Task.sleep(nanoseconds: 100_000_000)
                         NovaSonicLogger.standard("🎙️ Initial audio prompt sent successfully")
                     } else {

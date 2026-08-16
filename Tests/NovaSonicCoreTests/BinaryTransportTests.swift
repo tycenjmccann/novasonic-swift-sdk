@@ -175,6 +175,30 @@ final class BinaryTransportTests: XCTestCase {
         XCTAssertNotNil(event["textOutput"])
     }
 
+    // MARK: - Speak-first transport validation
+
+    // Validates that binaryAudioInputData returns raw data suitable for speak-first binary path
+    func testSpeakFirstBinaryTransportUsesRawData() {
+        // Simulate hello.wav audio data
+        let helloWavData = Data(repeating: 0x42, count: 4096)
+
+        // Binary transport: should return raw data unchanged
+        let binaryResult = BedrockEvents.binaryAudioInputData(audioData: helloWavData)
+        XCTAssertEqual(binaryResult, helloWavData, "Speak-first binary path must send raw audio data unchanged")
+        XCTAssertEqual(binaryResult.count, helloWavData.count, "Binary transport must not expand speak-first audio")
+
+        // JSON transport: should return base64-wrapped JSON
+        let jsonResult = BedrockEvents.audioInputEvent(
+            audioData: helloWavData,
+            promptName: "test-prompt",
+            audioContentName: "audio-1"
+        )
+        XCTAssertTrue(jsonResult.contains("\"content\""), "JSON transport must wrap audio in JSON event")
+        XCTAssertTrue(jsonResult.contains(helloWavData.base64EncodedString()), "JSON transport must base64-encode the audio")
+        // JSON wrapping always expands data
+        XCTAssertTrue(jsonResult.utf8.count > helloWavData.count, "JSON event must be larger than raw audio")
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ string: String) -> [String: Any]? {
