@@ -151,38 +151,64 @@ NovaSonicFloatingButton.withDynamoDBHistory(
 
 ```swift
 public struct TranscriptionConfig: Equatable {
-    /// Whether partial transcription results are returned (default: true)
-    public let partialResultsEnabled: Bool
+    /// BCP-47 language code to bias transcription (e.g., "en-US", "es-MX", "pt-BR")
+    /// Note: Spanish and Portuguese require regional variants (es-MX, pt-BR, etc.)
+    public let languageHint: String?
 
-    /// Keyterms to boost recognition for (max 100 items, each max 50 characters)
-    public let keyterms: [String]
+    /// Domain-specific keyterms to boost recognition (max 100, each ≤50 chars)
+    public let keyterms: [String]?
 
-    public init(partialResultsEnabled: Bool = true, keyterms: [String] = [])
+    public init(languageHint: String? = nil, keyterms: [String]? = nil)
     public func validate() throws  // Throws NovaSonicError.invalidConfiguration on constraint violation
 }
 ```
 
-### Usage in NovaSonicConfiguration
+### replace
+
+```swift
+/// Word replacement map — keys are misheard transcriptions, values are correct spellings
+public let replace: [String: String]?
+```
+
+Set on `NovaSonicConfiguration` to correct common misrecognitions:
 
 ```swift
 let config = NovaSonicConfiguration(
+    replace: ["bedrok": "Bedrock", "novalog": "NovaLog"],
     transcription: TranscriptionConfig(
-        partialResultsEnabled: true,
-        keyterms: ["AWS", "Bedrock", "Nova Sonic"]
+        languageHint: "en-US",
+        keyterms: ["Bedrock", "NovaLog", "Nova Sonic"]
     )
 )
 ```
 
-When `transcription` is set, a `session.update` event is sent automatically after `sessionStart`.
+When `replace` or `transcription` is set, a `session.update` event is sent automatically after `sessionStart`.
 
-### Mid-Session Update
+### updateSession(_:)
+
+Update voice, replacements, or transcription settings during an active session:
 
 ```swift
-// Update transcription settings during an active session
+public func updateSession(
+    voice: NovaSonicVoice? = nil,
+    replace: [String: String]? = nil,
+    transcription: TranscriptionConfig? = nil
+) async throws
+```
+
+Example:
+
+```swift
 try await streamManager.updateSession(
-    transcription: TranscriptionConfig(keyterms: ["updated-term"])
+    replace: ["updated-term": "UpdatedTerm"],
+    transcription: TranscriptionConfig(
+        languageHint: "es-MX",
+        keyterms: ["término", "configuración"]
+    )
 )
 ```
+
+**Language hint constraints:** Spanish and Portuguese require regional variants (`es-MX`, `es-ES`, `pt-BR`, `pt-PT`). Bare `es` or `pt` are not valid.
 
 ## NovaSonicVoice
 

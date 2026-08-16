@@ -98,17 +98,18 @@ struct ContentView: View {
 
 ## Session Update (Transcription)
 
-Customize input transcription settings (keyterm boosting, partial results) via `session.update`:
+Customize input transcription via `session.update` — set word replacements, language hints, and keyterm boosting:
 
 ```swift
 import NovaSonicCore
 
-// Configure with transcription keyterms for domain-specific recognition
+// Configure replace, languageHint, and keyterms at session start
 let config = NovaSonicConfiguration(
     voice: .tiffany,
     systemPrompt: "You are a medical assistant.",
+    replace: ["acetomenophen": "acetaminophen", "ibuprofin": "ibuprofen"],
     transcription: TranscriptionConfig(
-        partialResultsEnabled: true,
+        languageHint: "en-US",
         keyterms: ["acetaminophen", "ibuprofen", "amoxicillin"]
     )
 )
@@ -117,15 +118,23 @@ streamManager.configure(with: config)
 try await streamManager.startSession()  // session.update sent automatically
 ```
 
-You can also update transcription mid-session:
+Update settings mid-session via `updateSession()`:
 
 ```swift
 try await streamManager.updateSession(
-    transcription: TranscriptionConfig(keyterms: ["new-term"])
+    voice: .matthew,
+    replace: ["novalog": "NovaLog", "bedrok": "Bedrock"],
+    transcription: TranscriptionConfig(
+        languageHint: "en-US",
+        keyterms: ["NovaLog", "Bedrock", "Lambda"]
+    )
 )
 ```
 
-**Limits:** max 100 keyterms, each max 50 characters.
+**Constraints:**
+- Max 100 keyterms, each max 50 characters.
+- `replace` maps misheard words to their correct spelling.
+- Spanish and Portuguese `languageHint` values must use regional variants (e.g., `es-MX`, `es-ES`, `pt-BR`, `pt-PT`) — bare `es` or `pt` are not supported.
 
 ## Configuration Options
 
