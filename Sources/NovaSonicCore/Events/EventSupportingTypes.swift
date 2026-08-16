@@ -89,7 +89,7 @@ public struct NovaSonicToolSpec {
 /// The payload structure places `replace` at the top level alongside `type`,
 /// while `languageHint` and `keyterms` are nested under
 /// `session.audio.input.transcription` with snake_case keys.
-/// Only non-nil fields are included (sparse update semantics).
+/// Only non-nil, non-empty fields are included (sparse update semantics — FR-1.3).
 public struct SessionUpdateEvent {
     public let replace: [String: String]?
     public let languageHint: String?

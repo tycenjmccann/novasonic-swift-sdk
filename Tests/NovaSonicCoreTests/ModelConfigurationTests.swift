@@ -248,8 +248,10 @@ final class SessionUpdateTests: XCTestCase {
         let parsed = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
         XCTAssertEqual(parsed["type"] as? String, "session.update")
-        // FR-1.3: empty replace dict must be omitted from payload
-        XCTAssertNil(parsed["replace"], "Empty replace dict must be omitted per FR-1.3")
+        // FR-1.3: empty replace dict must be omitted, not serialized as {}
+        XCTAssertNil(parsed["replace"])
+        // No session subtree either when no other fields set
+        XCTAssertNil(parsed["session"])
     }
 
     func testSessionUpdateEventWithLanguageHintOnly() throws {
